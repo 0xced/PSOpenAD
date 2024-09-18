@@ -9,26 +9,26 @@ public class OpenADEntity
 {
     internal static (string, bool)[] DEFAULT_PROPERTIES = Array.Empty<(string, bool)>();
 
-    protected readonly IDictionary<string,(PSObject[], bool)> Attributes;
+    protected readonly IDictionary<string,(object[], bool)> Attributes;
 
-    public OpenADEntity(IDictionary<string, (PSObject[], bool)> attributes)
+    public OpenADEntity(IDictionary<string, (object[], bool)> attributes)
     {
         Attributes = attributes ?? throw new ArgumentNullException(nameof(attributes));
     }
 
     protected T GetAttribute<T>(string attributeName, T defaultValue)
     {
-        return Attributes.TryGetValue(attributeName, out var attributeValue) ? (T)attributeValue.Item1[0].BaseObject : defaultValue;
+        return Attributes.TryGetValue(attributeName, out var attributeValue) ? (T)attributeValue.Item1[0] : defaultValue;
     }
 
     protected T GetAttribute<T>(string attributeName, Func<T> defaultValue)
     {
-        return Attributes.TryGetValue(attributeName, out var attributeValue) ? (T)attributeValue.Item1[0].BaseObject : defaultValue();
+        return Attributes.TryGetValue(attributeName, out var attributeValue) ? (T)attributeValue.Item1[0] : defaultValue();
     }
 
     protected T[] GetAttributes<T>(string attributeName)
     {
-        return Attributes.TryGetValue(attributeName, out var attributeValue) ? attributeValue.Item1.Select(v => (T)v.BaseObject).ToArray() : Array.Empty<T>();
+        return Attributes.TryGetValue(attributeName, out var attributeValue) ? attributeValue.Item1.Cast<T>().ToArray() : Array.Empty<T>();
     }
 
     internal static (string, bool)[] ExtendPropertyList((string, bool)[] existing, (string, bool)[] toAdd)
@@ -54,7 +54,7 @@ public class OpenADObject : OpenADEntity
     public string ObjectClass { get; }
     public Guid ObjectGuid { get; }
 
-    public OpenADObject(IDictionary<string, (PSObject[], bool)> attributes)
+    public OpenADObject(IDictionary<string, (object[], bool)> attributes)
         : base(attributes)
     {
         DistinguishedName = GetAttribute("distinguishedName", "");
@@ -75,7 +75,7 @@ public class OpenADPrincipal : OpenADObject
     public string SamAccountName { get; }
     public SecurityIdentifier SID { get; }
 
-    public OpenADPrincipal(IDictionary<string, (PSObject[], bool)> attributes) : base(attributes)
+    public OpenADPrincipal(IDictionary<string, (object[], bool)> attributes) : base(attributes)
     {
         SamAccountName = GetAttribute("sAMAccountName", "");
         SID = GetAttribute("objectSid", () => new SecurityIdentifier(""));
@@ -94,7 +94,7 @@ public class OpenADAccount : OpenADPrincipal
 
     public string UserPrincipalName { get; }
 
-    public OpenADAccount(IDictionary<string, (PSObject[], bool)> attributes) : base(attributes)
+    public OpenADAccount(IDictionary<string, (object[], bool)> attributes) : base(attributes)
     {
         UserAccountControl control = GetAttribute("userAccountControl", UserAccountControl.None);
         Enabled = (control & UserAccountControl.AccountDisable) == 0;
@@ -111,7 +111,7 @@ public class OpenADComputer : OpenADAccount
 
     public string DNSHostName { get; }
 
-    public OpenADComputer(IDictionary<string, (PSObject[], bool)> attributes) : base(attributes)
+    public OpenADComputer(IDictionary<string, (object[], bool)> attributes) : base(attributes)
     {
         DNSHostName = GetAttribute("dNSHostName", "");
     }
@@ -126,7 +126,7 @@ public class OpenADServiceAccount : OpenADAccount
 
     public string[] ServicePrincipalNames { get; }
 
-    public OpenADServiceAccount(IDictionary<string, (PSObject[], bool)> attributes) : base(attributes)
+    public OpenADServiceAccount(IDictionary<string, (object[], bool)> attributes) : base(attributes)
     {
         ServicePrincipalNames = GetAttributes<string>("servicePrincipalName");
     }
@@ -143,7 +143,7 @@ public class OpenADUser : OpenADAccount
     public string GivenName { get; }
     public string Surname { get; }
 
-    public OpenADUser(IDictionary<string, (PSObject[], bool)> attributes) : base(attributes)
+    public OpenADUser(IDictionary<string, (object[], bool)> attributes) : base(attributes)
     {
         GivenName = GetAttribute("givenName", "");
         Surname = GetAttribute("sn", "");
@@ -161,7 +161,7 @@ public class OpenADGroup : OpenADPrincipal
 
     public ADGroupScope GroupScope { get; }
 
-    public OpenADGroup(IDictionary<string, (PSObject[], bool)> attributes) : base(attributes)
+    public OpenADGroup(IDictionary<string, (object[], bool)> attributes) : base(attributes)
     {
         GroupType groupType = GetAttribute("groupType", GroupType.None);
         GroupCategory = (groupType & GroupType.IsSecurity) != 0

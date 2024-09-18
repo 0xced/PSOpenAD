@@ -22,7 +22,7 @@ public class GetOpenADGroupMember : GetOpenADOperation<ADPrincipalIdentity>
     internal override LDAPFilter FilteredClass
         => new FilterEquality("objectCategory", LDAP.LDAPFilter.EncodeSimpleFilterValue("group"));
 
-    internal override OpenADObject CreateADObject(Dictionary<string, (PSObject[], bool)> attributes)
+    internal override OpenADObject CreateADObject(Dictionary<string, (object[], bool)> attributes)
         => new OpenADPrincipal(attributes);
 
     internal override IEnumerable<SearchResultEntry> SearchRequest(
@@ -93,6 +93,6 @@ public class GetOpenADGroupMember : GetOpenADOperation<ADPrincipalIdentity>
 
     internal override void ProcessOutputObject(PSObject obj)
     {
-        obj.Properties.Add(KeyValuePair.Create<string, object?>("QueriedGroup", _currentGroupDN));
+        obj.Properties.Add(new PSNoteProperty("QueriedGroup", _currentGroupDN));
     }
 }

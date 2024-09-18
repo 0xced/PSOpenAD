@@ -9,7 +9,7 @@ using Microsoft.Extensions.Logging;
 
 namespace PSOpenAD.Module.Commands;
 
-internal delegate OpenADEntity CreateADObjectDelegate(Dictionary<string, (PSObject[], bool)> attributes);
+internal delegate OpenADEntity CreateADObjectDelegate(Dictionary<string, (object[], bool)> attributes);
 
 public abstract class GetOpenADOperation<T> : OpenADSessionCmdletBase
     where T : ADObjectIdentity
@@ -22,7 +22,7 @@ public abstract class GetOpenADOperation<T> : OpenADSessionCmdletBase
 
     internal abstract LDAPFilter FilteredClass { get; }
 
-    internal abstract OpenADObject CreateADObject(Dictionary<string, (PSObject[], bool)> attributes);
+    internal abstract OpenADObject CreateADObject(Dictionary<string, (object[], bool)> attributes);
 
     #region Connection Parameters
 
@@ -281,7 +281,7 @@ public abstract class GetOpenADOperation<T> : OpenADSessionCmdletBase
         ILogger logger
     )
     {
-        Dictionary<string, (PSObject[], bool)> props = new(_caseInsensitiveComparer);
+        Dictionary<string, (object[], bool)> props = new(_caseInsensitiveComparer);
         foreach (PartialAttribute attribute in result.Attributes)
         {
             props[attribute.Name] = session.SchemaMetadata.TransformAttributeValue(
@@ -323,10 +323,8 @@ public abstract class GetOpenADOperation<T> : OpenADSessionCmdletBase
                 (value, bool isSingleValue) = props[p];
                 if (isSingleValue)
                 {
-                    value = ((IList<PSObject>)value)[0];
+                    value = ((IList<object>)value)[0];
                 }
-
-                value = ((PSObject)value).BaseObject;
             }
 
             // To make the properties more PowerShell like make sure the first char is in upper case.
@@ -353,7 +351,7 @@ public class GetOpenADObject : GetOpenADOperation<ADObjectIdentity>
 
     internal override LDAPFilter FilteredClass => new FilterPresent("objectClass");
 
-    internal override OpenADObject CreateADObject(Dictionary<string, (PSObject[], bool)> attributes)
+    internal override OpenADObject CreateADObject(Dictionary<string, (object[], bool)> attributes)
         => new(attributes);
 }
 
@@ -369,7 +367,7 @@ public class GetOpenADComputer : GetOpenADOperation<ADPrincipalIdentityWithDolla
     internal override LDAPFilter FilteredClass
         => new FilterEquality("objectCategory", LDAP.LDAPFilter.EncodeSimpleFilterValue("computer"));
 
-    internal override OpenADComputer CreateADObject(Dictionary<string, (PSObject[], bool)> attributes)
+    internal override OpenADComputer CreateADObject(Dictionary<string, (object[], bool)> attributes)
         => new(attributes);
 }
 
@@ -388,7 +386,7 @@ public class GetOpenADUser : GetOpenADOperation<ADPrincipalIdentity>
             new FilterEquality("objectClass", LDAP.LDAPFilter.EncodeSimpleFilterValue("user"))
         });
 
-    internal override OpenADUser CreateADObject(Dictionary<string, (PSObject[], bool)> attributes)
+    internal override OpenADUser CreateADObject(Dictionary<string, (object[], bool)> attributes)
         => new(attributes);
 }
 
@@ -404,7 +402,7 @@ public class GetOpenADGroup : GetOpenADOperation<ADPrincipalIdentity>
     internal override LDAPFilter FilteredClass
         => new FilterEquality("objectCategory", LDAP.LDAPFilter.EncodeSimpleFilterValue("group"));
 
-    internal override OpenADGroup CreateADObject(Dictionary<string, (PSObject[], bool)> attributes)
+    internal override OpenADGroup CreateADObject(Dictionary<string, (object[], bool)> attributes)
         => new(attributes);
 }
 
@@ -420,6 +418,6 @@ public class GetOpenADServiceAccount : GetOpenADOperation<ADPrincipalIdentityWit
     internal override LDAPFilter FilteredClass
         => new FilterEquality("objectCategory", LDAP.LDAPFilter.EncodeSimpleFilterValue("msDS-GroupManagedServiceAccount"));
 
-    internal override OpenADServiceAccount CreateADObject(Dictionary<string, (PSObject[], bool)> attributes)
+    internal override OpenADServiceAccount CreateADObject(Dictionary<string, (object[], bool)> attributes)
         => new(attributes);
 }

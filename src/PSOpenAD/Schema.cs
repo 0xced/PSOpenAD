@@ -11,27 +11,6 @@ using Microsoft.Extensions.Logging;
 
 namespace PSOpenAD;
 
-public class PSObject
-{
-    internal PSObject() : this(new object())
-    {
-    }
-
-    private PSObject(object obj)
-    {
-        BaseObject = obj;
-    }
-
-    public object BaseObject { get; }
-
-    public List<KeyValuePair<string, object?>> Properties { get; } = new();
-
-    internal static PSObject AsPSObject(object obj)
-    {
-        return new PSObject(obj);
-    }
-}
-
 internal static class DefaultOverrider
 {
     public delegate (object, bool?) CustomTransform(string attribute, ReadOnlySpan<byte> value);
@@ -325,7 +304,7 @@ internal sealed class SchemaMetadata
         }
     }
 
-    public (PSObject[], bool) TransformAttributeValue(string attribute, IList<byte[]> value, ILogger logger)
+    public (object[], bool) TransformAttributeValue(string attribute, IList<byte[]> value, ILogger logger)
     {
         AttributeTypeDescription? attrInfo = null;
         if (_typeInformation.ContainsKey(attribute))
@@ -339,10 +318,10 @@ internal sealed class SchemaMetadata
             customTransform = DefaultOverrider.Overrides[attribute];
 
         bool? isSingleValue = null;
-        List<PSObject> processed = new();
+        List<object> processed = new();
         foreach (byte[] val in value)
         {
-            PSObject parsed;
+            object parsed;
             try
             {
                 object raw;
@@ -355,7 +334,7 @@ internal sealed class SchemaMetadata
                     raw = ProcessAttributeValue(oidSyntax, val);
                 }
 
-                parsed = PSObject.AsPSObject(raw);
+                parsed = raw;
 
             }
             catch (Exception e)
@@ -365,10 +344,9 @@ internal sealed class SchemaMetadata
                 // cmdlet?.WriteError(rec);
                 logger.LogError("TODO: Failed to parse {Attribute} (OID '{Oid}') - {Message}", attribute, oidSyntax, e.Message);
 
-                parsed = new PSObject();
+                parsed = new object();
             }
 
-            parsed.Properties.Add(KeyValuePair.Create<string, object?>("RawValue", val));
             processed.Add(parsed);
         }
 

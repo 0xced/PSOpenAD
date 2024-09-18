@@ -129,10 +129,10 @@ public abstract class OpenADSessionCmdletBase : OpenADCancellableCmdlet
             return null;
         }
 
-        (PSObject[] rawDn, bool _) = session.SchemaMetadata.TransformAttributeValue(
+        (object[] rawDn, bool _) = session.SchemaMetadata.TransformAttributeValue(
             dnResult.Name,
             dnResult.Values,
             Logger);
-        return (string)rawDn[0].BaseObject;
+        return (string)rawDn[0];
     }
 }
