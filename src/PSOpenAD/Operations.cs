@@ -1,9 +1,9 @@
-using PSOpenAD.LDAP;
 using System;
+using PSOpenAD.LDAP;
 using System.Collections.Generic;
 using System.Linq;
-using System.Management.Automation;
 using System.Threading;
+using Microsoft.Extensions.Logging;
 
 namespace PSOpenAD;
 
@@ -15,7 +15,7 @@ internal static class Operations
     /// <param name="attributes">The attributes and their values to set on the new object.</param>
     /// <param name="controls">Custom controls to use with the request</param>
     /// <param name="cancelToken">Token to cancel any network IO waits</param>
-    /// <param name="cmdlet">The PSCmdlet that is running the operation.</param>
+    /// <param name="logger">The logger logger.</param>
     /// <returns>The AddResponse from the request.</returns>
     public static AddResponse LdapAddRequest(
         IADConnection connection,
@@ -23,10 +23,10 @@ internal static class Operations
         PartialAttribute[] attributes,
         IList<LDAPControl>? controls,
         CancellationToken cancelToken,
-        PSCmdlet? cmdlet
+        ILogger logger
     )
     {
-        cmdlet?.WriteVerbose($"Starting LDAP add request for '{entry}'");
+        logger.LogTrace("Starting LDAP add request for {Entry}", entry);
 
         int addId = connection.Session.Add(entry, attributes, controls: controls);
         AddResponse addRes = (AddResponse)connection.WaitForMessage(addId, cancelToken: cancelToken);
@@ -34,12 +34,10 @@ internal static class Operations
 
         if (addRes.Result.ResultCode != LDAPResultCode.Success)
         {
-            ErrorRecord error = new(
-                new LDAPException($"Failed to add '{entry}'", addRes.Result),
-                "LDAPAddFailure",
-                ErrorCategory.InvalidOperation,
-                null);
-            cmdlet?.WriteError(error);
+            using (logger.BeginScope(new Dictionary<string, string> { ["ErrorId"] = "LDAPAddFailure", ["ErrorCategory"] = "InvalidOperation" }))
+            {
+                logger.LogError("Failed to add {Entry}", addRes.Result);
+            }
         }
 
         return addRes;
@@ -50,17 +48,17 @@ internal static class Operations
     /// <param name="entry">The entry DN to delete.</param>
     /// <param name="controls">Custom controls to use with the request</param>
     /// <param name="cancelToken">Token to cancel any network IO waits</param>
-    /// <param name="cmdlet">The PSCmdlet that is running the operation.</param>
+    /// <param name="logger">The PSCmdlet that is running the operation.</param>
     /// <returns>The DelResponse from the request.</returns>
     public static DelResponse LdapDeleteRequest(
         IADConnection connection,
         string entry,
         IList<LDAPControl>? controls,
         CancellationToken cancelToken,
-        PSCmdlet? cmdlet
+        ILogger logger
     )
     {
-        cmdlet?.WriteVerbose($"Starting LDAP delete request for '{entry}'");
+        logger.LogTrace("Starting LDAP delete request for {Entry}", entry);
 
         int addId = connection.Session.Delete(entry, controls: controls);
         DelResponse delRes = (DelResponse)connection.WaitForMessage(addId, cancelToken: cancelToken);
@@ -68,12 +66,10 @@ internal static class Operations
 
         if (delRes.Result.ResultCode != LDAPResultCode.Success)
         {
-            ErrorRecord error = new(
-                new LDAPException($"Failed to delete '{entry}'", delRes.Result),
-                "LDAPDeleteFailure",
-                ErrorCategory.InvalidOperation,
-                null);
-            cmdlet?.WriteError(error);
+            using (logger.BeginScope(new Dictionary<string, string> { ["ErrorId"] = "LDAPDeleteFailure", ["ErrorCategory"] = "InvalidOperation" }))
+            {
+                logger.LogError("Failed to delete {Entry}", delRes.Result);
+            }
         }
 
         return delRes;
@@ -85,7 +81,7 @@ internal static class Operations
     /// <param name="changes">The changes to perform on the object.</param>
     /// <param name="controls">Custom controls to use with the request</param>
     /// <param name="cancelToken">Token to cancel any network IO waits</param>
-    /// <param name="cmdlet">The PSCmdlet that is running the operation.</param>
+    /// <param name="logger">The logger logger.</param>
     /// <returns>The ModifyResponse from the request.</returns>
     public static ModifyResponse LdapModifyRequest(
         IADConnection connection,
@@ -93,10 +89,10 @@ internal static class Operations
         ModifyChange[] changes,
         IList<LDAPControl>? controls,
         CancellationToken cancelToken,
-        PSCmdlet? cmdlet
+        ILogger logger
     )
     {
-        cmdlet?.WriteVerbose($"Starting LDAP modify request for '{entry}'");
+        logger.LogTrace("Starting LDAP modify request for {Entry}", entry);
 
         int addId = connection.Session.Modify(entry, changes, controls: controls);
         ModifyResponse modifyRes = (ModifyResponse)connection.WaitForMessage(addId, cancelToken: cancelToken);
@@ -104,12 +100,10 @@ internal static class Operations
 
         if (modifyRes.Result.ResultCode != LDAPResultCode.Success)
         {
-            ErrorRecord error = new(
-                new LDAPException($"Failed to modify '{entry}'", modifyRes.Result),
-                "LDAPModifyFailure",
-                ErrorCategory.InvalidOperation,
-                null);
-            cmdlet?.WriteError(error);
+            using (logger.BeginScope(new Dictionary<string, string> { ["ErrorId"] = "LDAPModifyFailure", ["ErrorCategory"] = "InvalidOperation" }))
+            {
+                logger.LogError("Failed to modify {Entry}", modifyRes.Result);
+            }
         }
 
         return modifyRes;
@@ -123,7 +117,7 @@ internal static class Operations
     /// <param name="newSuperior">If not null or whitespace, the new object to move the entry to.</param>
     /// <param name="controls">Custom controls to use with the request</param>
     /// <param name="cancelToken">Token to cancel any network IO waits</param>
-    /// <param name="cmdlet">The PSCmdlet that is running the operation.</param>
+    /// <param name="logger">The logger logger.</param>
     /// <returns>The ModifyDNResponse from the request.</returns>
     public static ModifyDNResponse LdapModifyDNRequest(
         IADConnection connection,
@@ -133,10 +127,11 @@ internal static class Operations
         string? newSuperior,
         IList<LDAPControl>? controls,
         CancellationToken cancelToken,
-        PSCmdlet? cmdlet)
+        ILogger logger
+    )
     {
         string targetDN = string.IsNullOrWhiteSpace(newSuperior) ? string.Empty : $",{newSuperior}";
-        cmdlet?.WriteVerbose($"Starting LDAP modify DN request for '{entry}'->'{newRDN}{targetDN}'");
+        logger.LogTrace("Starting LDAP modify DN request for {Entry}->{NewRDN}{TargetDN}", entry, newRDN, targetDN);
 
         int addId = connection.Session.ModifyDN(
             entry,
@@ -149,12 +144,10 @@ internal static class Operations
 
         if (modifyRes.Result.ResultCode != LDAPResultCode.Success)
         {
-            ErrorRecord error = new(
-                new LDAPException($"Failed to modify DN '{entry}'->'{newRDN}{targetDN}'", modifyRes.Result),
-                "LDAPModifyFailure",
-                ErrorCategory.InvalidOperation,
-                null);
-            cmdlet?.WriteError(error);
+            using (logger.BeginScope(new Dictionary<string, string> { ["ErrorId"] = "LDAPModifyFailure", ["ErrorCategory"] = "InvalidOperation" }))
+            {
+                logger.LogError("Failed to modify DN {Entry}->{NewRDN}{TargetDN}", modifyRes.Result, newRDN, targetDN);
+            }
         }
 
         return modifyRes;
@@ -169,7 +162,7 @@ internal static class Operations
     /// <param name="filter">The LDAP filter to use for the query.</param>
     /// <param name="attributes">The attributes to retrieve.</param>
     /// <param name="cancelToken">Token to cancel any network IO waits</param>
-    /// <param name="cmdlet">The PSCmdlet that is running the operation.</param>
+    /// <param name="logger">The logger logger.</param>
     /// <param name="ignoreErrors">Ignore errors and do not write to the error stream.</param>
     /// <returns>Yields each returned result containing the attributes requested from the search request.</returns>
     public static IEnumerable<SearchResultEntry> LdapSearchRequest(
@@ -182,11 +175,11 @@ internal static class Operations
         string[] attributes,
         IList<LDAPControl>? controls,
         CancellationToken cancelToken,
-        PSCmdlet? cmdlet,
+        ILogger logger,
         bool ignoreErrors
     )
     {
-        cmdlet?.WriteVerbose($"Starting LDAP search request at '{searchBase}' for {scope} - {filter}");
+        logger.LogTrace("Starting LDAP search request at '{SearchBase}' for {Scope} - {Filter}", searchBase, scope, filter);
 
         int searchId = 0;
         int paginationLimit = sizeLimit > 0 ? sizeLimit : 1000;
@@ -211,7 +204,7 @@ internal static class Operations
                 PagedResultControl? paginateControl = resultDone.Controls?.OfType<PagedResultControl>().FirstOrDefault();
                 if (resultDone.Result.ResultCode == LDAPResultCode.Success && paginateControl?.Cookie?.Length > 0)
                 {
-                    cmdlet?.WriteVerbose("Receive pagination result, sending new search request");
+                    logger.LogTrace("Receive pagination result, sending new search request");
                     request = true;
                     paginationCookie = paginateControl.Cookie;
 
@@ -219,31 +212,28 @@ internal static class Operations
                 }
                 else if (resultDone.Result.ResultCode == LDAPResultCode.SizeLimitExceeded)
                 {
-                    cmdlet?.WriteWarning("Exceeded size limit of search request - results may be incomplete.");
+                    logger.LogWarning("Exceeded size limit of search request - results may be incomplete.");
                 }
                 else if (!ignoreErrors && resultDone.Result.ResultCode == LDAPResultCode.Referral)
                 {
-                    // FUTURE: see if we can try and do the referral ourselves
-                    ErrorRecord error = new(
-                        new LDAPException(resultDone.Result),
-                        "LDAPReferral",
-                        ErrorCategory.ResourceUnavailable,
-                        null);
-
-                    string referralUris = string.Join("', '", resultDone.Result.Referrals ?? Array.Empty<string>());
-                    error.ErrorDetails = new(
-                        $"A referral was returned from the server that points to: '{referralUris}'");
-                    error.ErrorDetails.RecommendedAction = "Perform request on one of the referral URIs";
-                    cmdlet?.WriteError(error);
+                    var state = new Dictionary<string, string>
+                    {
+                        ["ErrorId"] = "LDAPReferral",
+                        ["ErrorCategory"] = "ResourceUnavailable",
+                        ["ErrorDetails"] = $"A referral was returned from the server that points to: '{string.Join("', '", resultDone.Result.Referrals ?? Array.Empty<string>())}'",
+                        ["ErrorRecommendedAction"] = "Perform request on one of the referral URIs",
+                    };
+                    using (logger.BeginScope(state))
+                    {
+                        logger.LogError("{Message}", resultDone.Result);
+                    }
                 }
                 else if (!ignoreErrors && resultDone.Result.ResultCode != LDAPResultCode.Success)
                 {
-                    ErrorRecord error = new(
-                        new LDAPException(resultDone.Result),
-                        "LDAPSearchFailure",
-                        ErrorCategory.InvalidOperation,
-                        null);
-                    cmdlet?.WriteError(error);
+                    using (logger.BeginScope(new Dictionary<string, string> { ["ErrorId"] = "LDAPSearchFailure", ["ErrorCategory"] = "InvalidOperation" }))
+                    {
+                        logger.LogError("{Message}", resultDone.Result);
+                    }
                 }
                 break;
             }

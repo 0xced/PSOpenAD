@@ -13,14 +13,16 @@ using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
+using PSOpenAD.Module.Commands;
 
 namespace PSOpenAD.Module;
 
-internal sealed class OpenADSessionFactory
+public sealed class OpenADSessionFactory
 {
     internal static OpenADSession? CreateOrUseDefault(string? server, PSCredential? credential,
         AuthenticationMethod auth, bool startTls, OpenADSessionOptions sessionOptions, CancellationToken cancelToken,
-        PSCmdlet cmdlet, bool skipCache = false)
+        ILogger logger, bool skipCache = false)
     {
         Uri ldapUri;
         if (string.IsNullOrEmpty(server))
@@ -32,11 +34,14 @@ internal sealed class OpenADSessionFactory
                 {
                     msg += $" {GlobalState.DefaultDCError}";
                 }
+                logger.LogError("TODO1: {msg}", msg);
+                /*
                 cmdlet.WriteError(new ErrorRecord(
                     new ArgumentException(msg),
                     "NoImplicitDomainController",
                     ErrorCategory.InvalidArgument,
                     null));
+                    */
                 return null;
             }
 
@@ -58,11 +63,14 @@ internal sealed class OpenADSessionFactory
             else
             {
                 string msg = "Expecting server in the format of hostname or hostname:port with port as an integer";
+                logger.LogError("TODO2: {msg}", msg);
+                /*
                 cmdlet.WriteError(new ErrorRecord(
                     new ArgumentException(msg),
                     "InvalidServerPort",
                     ErrorCategory.InvalidArgument,
                     null));
+                    */
                 return null;
             }
         }
@@ -81,38 +89,38 @@ internal sealed class OpenADSessionFactory
         {
             try
             {
-                return Create(ldapUri, credential, auth, startTls, sessionOptions, cancelToken, cmdlet: cmdlet);
+                return Create(ldapUri, credential, auth, startTls, sessionOptions, cancelToken, logger: logger);
             }
             catch (LDAPException e)
             {
-                cmdlet.WriteError(new ErrorRecord(e, "LDAPError", ErrorCategory.ProtocolError, null));
+                logger.LogError(@$"TODO: new ErrorRecord({e}, ""LDAPError"", ErrorCategory.ProtocolError, null)");
             }
             catch (AuthenticationException e)
             {
-                cmdlet.WriteError(new ErrorRecord(e, "AuthError", ErrorCategory.AuthenticationError, null));
+                logger.LogError(@$"TODO: new ErrorRecord({e}, ""AuthError"", ErrorCategory.AuthenticationError, null)");
             }
             catch (ArgumentException e)
             {
-                cmdlet.WriteError(new ErrorRecord(e, "InvalidParameter", ErrorCategory.InvalidArgument, null));
+                logger.LogError(@$"TODO: new ErrorRecord({e}, ""InvalidParameter"", ErrorCategory.InvalidArgument, null)");
             }
 
             return null;
         }
         else
         {
-            cmdlet.WriteVerbose("Using cached OpenADSession");
+            logger.LogTrace("Using cached OpenADSession");
             return session;
         }
     }
 
-    internal static OpenADSession Create(
+    public static OpenADSession Create(
         Uri uri,
         PSCredential? credential,
         AuthenticationMethod auth,
         bool startTls,
         OpenADSessionOptions sessionOptions,
         CancellationToken cancelToken,
-        PSCmdlet cmdlet
+        ILogger logger
     )
     {
         if (auth == AuthenticationMethod.Certificate && sessionOptions.ClientCertificate is null)
@@ -121,7 +129,7 @@ internal sealed class OpenADSessionFactory
                 "Certificate authentication is requested but ClientCertificate has not been set");
         }
 
-        cmdlet.WriteVerbose($"Connecting to {uri}");
+        logger.LogTrace("Connecting to {Uri}", uri);
         TcpClient client = new();
         Task connectTask = client.ConnectAsync(uri.DnsSafeHost, uri.Port);
         if (!connectTask.Wait(sessionOptions.ConnectTimeout, cancelToken))
@@ -141,7 +149,7 @@ internal sealed class OpenADSessionFactory
             if (startTls || uri.Scheme.Equals("ldaps", StringComparison.InvariantCultureIgnoreCase))
             {
                 transportIsTls = true;
-                channelBindings = ProcessTlsOptions(connection, uri, startTls, sessionOptions, cancelToken, cmdlet);
+                channelBindings = ProcessTlsOptions(connection, uri, startTls, sessionOptions, cancelToken, logger);
             }
             else if (auth == AuthenticationMethod.Certificate)
             {
@@ -157,7 +165,7 @@ internal sealed class OpenADSessionFactory
                 transportIsTls,
                 sessionOptions,
                 cancelToken,
-                cmdlet,
+                logger,
                 out var authSigned,
                 out var authEncrypted
             );
@@ -173,7 +181,7 @@ internal sealed class OpenADSessionFactory
             };
             foreach (SearchResultEntry searchRes in Operations.LdapSearchRequest(connection, "", SearchScope.Base,
                 0, sessionOptions.OperationTimeout, new FilterPresent("objectClass"),
-                baseAttributes, null, cancelToken, cmdlet, true))
+                baseAttributes, null, cancelToken, logger, true))
             {
                 foreach (PartialAttribute attribute in searchRes.Attributes)
                 {
@@ -198,7 +206,7 @@ internal sealed class OpenADSessionFactory
 
             // Attempt to get the schema info of the host so the code can parse the raw LDAP attribute values into
             // the required PowerShell type.
-            SchemaMetadata schema = QuerySchema(connection, subschemaSubentry, sessionOptions, cancelToken, cmdlet);
+            SchemaMetadata schema = QuerySchema(connection, subschemaSubentry, sessionOptions, cancelToken, logger);
 
             return new OpenADSession(connection, uri, auth, transportIsTls || authSigned,
                 transportIsTls || authEncrypted, sessionOptions.OperationTimeout, defaultNamingContext, schema,
@@ -217,10 +225,10 @@ internal sealed class OpenADSessionFactory
     /// <param name="startTls">Whether to perform StartTLS on an LDAP connection.</param>
     /// <param name="sessionOptions">More session options to control the TLS behaviour.</param>
     /// <param name="cancelToken">Cancellation token for any network requests.</param>
-    /// <param name="cmdlet">PSCmdlet to write verbose records to.</param>
+    /// <param name="logger">PSCmdlet to write verbose records to.</param>
     /// <returns>The channel binding data used with SASL authentication if available.</returns>
     private static ChannelBindings? ProcessTlsOptions(IADConnection connection, Uri uri, bool startTls,
-        OpenADSessionOptions sessionOptions, CancellationToken cancelToken, PSCmdlet cmdlet)
+        OpenADSessionOptions sessionOptions, CancellationToken cancelToken, ILogger logger)
     {
         if (sessionOptions.NoEncryption || sessionOptions.NoSigning)
             throw new ArgumentException("Cannot disable encryption or signatures for TLS based connection");
@@ -231,7 +239,7 @@ internal sealed class OpenADSessionFactory
         }
         else if (startTls)
         {
-            cmdlet.WriteVerbose("Sending StartTLS request to the server");
+            logger.LogTrace("Sending StartTLS request to the server");
             int startTlsId = connection.Session.ExtendedRequest(ExtendedOperations.LDAP_SERVER_START_TLS_OID);
 
             ExtendedResponse extResp = (ExtendedResponse)connection.WaitForMessage(startTlsId,
@@ -241,7 +249,7 @@ internal sealed class OpenADSessionFactory
                 throw new LDAPException(extResp.Result);
         }
 
-        cmdlet.WriteVerbose("Performing TLS handshake on connection");
+        logger.LogTrace("Performing TLS handshake on connection");
         SslClientAuthenticationOptions authOptions = new()
         {
             TargetHost = uri.DnsSafeHost,
@@ -322,7 +330,7 @@ internal sealed class OpenADSessionFactory
     /// <param name="transportIsTls">Whether the underlying transport is protected with TLS.</param>
     /// <param name="sessionOptions">More session options to control the auth behaviour.</param>
     /// <param name="cancelToken">Cancellation token for any network requests.</param>
-    /// <param name="cmdlet">PSCmdlet to write verbose records to.</param>
+    /// <param name="logger">PSCmdlet to write verbose records to.</param>
     /// <param name="signed">Whether the auth context will sign the messages.</param>
     /// <param name="encrypted">Whether the auth context will encrypt the messages.</param>
     /// <returns>The authentication method used</returns>
@@ -335,7 +343,7 @@ internal sealed class OpenADSessionFactory
         bool transportIsTls,
         OpenADSessionOptions sessionOptions,
         CancellationToken cancelToken,
-        PSCmdlet cmdlet,
+        ILogger logger,
         out bool signed,
         out bool encrypted
     )
@@ -368,7 +376,7 @@ internal sealed class OpenADSessionFactory
                 auth = AuthenticationMethod.Anonymous;
             }
 
-            cmdlet.WriteVerbose($"Default authentication mechanism has been set to {auth}");
+            logger.LogTrace("Default authentication mechanism has been set to {Auth}", auth);
         }
 
         AuthenticationProvider selectedAuth = GlobalState.Providers[auth];
@@ -397,14 +405,14 @@ internal sealed class OpenADSessionFactory
                 auth == AuthenticationMethod.Negotiate && sessionOptions.NoEncryption
                 && !sessionOptions.NoSigning)
             {
-                cmdlet.WriteWarning("-AuthType Negotiate cannot disable encryption without disabling signing");
+                logger.LogWarning("-AuthType Negotiate cannot disable encryption without disabling signing");
                 // Will be set to false above, need to ensure that it is true unless TLS is used as the packets
                 // must be encrypted for Negotiate unless both integrity is disabled.
                 encrypted = !transportIsTls;
             }
             if (sessionOptions.NoSigning && !sessionOptions.NoEncryption)
             {
-                cmdlet.WriteWarning("Cannot disable signatures and not encryption");
+                logger.LogWarning("Cannot disable signatures and not encryption");
             }
 
             SecurityContext context;
@@ -424,7 +432,7 @@ internal sealed class OpenADSessionFactory
                 cancelToken);
 
             connection.AssociateSecurityContext(context, signed, encrypted);
-            cmdlet.WriteVerbose($"SASL auth complete - Will Sign {signed} - Will Encrypt {encrypted}");
+            logger.LogTrace("SASL auth complete - Will Sign {Signed} - Will Encrypt {Encrypted}", signed, encrypted);
         }
         else if (auth == AuthenticationMethod.Certificate)
         {
@@ -586,10 +594,10 @@ internal sealed class OpenADSessionFactory
     /// <param name="subschemaSubentry">The DN of the subschemaSubentry to query.</param>
     /// <param name="sessionOption">The session options to control the query timeout.</param>
     /// <param name="cancelToken">Token to cancel any network IO waits</param>
-    /// <param name="cmdlet">PSCmdlet used to write verbose records.</param>
+    /// <param name="logger">PSCmdlet used to write verbose records.</param>
     /// <returns>The schema information.</returns>
     private static SchemaMetadata QuerySchema(IADConnection connection, string subschemaSubentry,
-        OpenADSessionOptions sessionOptions, CancellationToken cancelToken, PSCmdlet? cmdlet)
+        OpenADSessionOptions sessionOptions, CancellationToken cancelToken, ILogger logger)
     {
         Dictionary<string, AttributeTypeDescription> attrInfo = new();
         Dictionary<string, DITContentRuleDescription> ditInfo = new();
@@ -599,7 +607,7 @@ internal sealed class OpenADSessionFactory
 
         foreach (SearchResultEntry result in Operations.LdapSearchRequest(connection, subschemaSubentry,
             SearchScope.Base, 0, sessionOptions.OperationTimeout, new FilterPresent("objectClass"),
-            new string[] { "attributeTypes", "dITContentRules", "objectClasses" }, null, cancelToken, cmdlet, true))
+            new string[] { "attributeTypes", "dITContentRules", "objectClasses" }, null, cancelToken, logger, true))
         {
             foreach (PartialAttribute attribute in result.Attributes)
             {

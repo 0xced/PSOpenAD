@@ -35,7 +35,7 @@ public class GetOpenADGroupMember : GetOpenADOperation<ADPrincipalIdentity>
     {
         foreach (SearchResultEntry group in Operations.LdapSearchRequest(session.Connection, searchBase,
             SearchScope, 1, session.OperationTimeout, filter, new[] { "primaryGroupToken" }, serverControls,
-            CancelToken, this, false))
+            CancelToken, Logger, false))
         {
             // use memberOf rather than member to make recursive search easier & avoid paging
             LDAPFilter memberOfFilter;
@@ -79,7 +79,7 @@ public class GetOpenADGroupMember : GetOpenADOperation<ADPrincipalIdentity>
             {
                 foreach (SearchResultEntry result in Operations.LdapSearchRequest(session.Connection, searchBase,
                     SearchScope, 0, session.OperationTimeout, memberOfFilter, attributes, serverControls, CancelToken,
-                    this, false))
+                    Logger, false))
                 {
                     yield return result;
                 }
@@ -93,6 +93,6 @@ public class GetOpenADGroupMember : GetOpenADOperation<ADPrincipalIdentity>
 
     internal override void ProcessOutputObject(PSObject obj)
     {
-        obj.Properties.Add(new PSNoteProperty("QueriedGroup", _currentGroupDN));
+        obj.Properties.Add(KeyValuePair.Create<string, object?>("QueriedGroup", _currentGroupDN));
     }
 }

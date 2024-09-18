@@ -42,7 +42,7 @@ public class RemoveOpenADObject : OpenADSessionCmdletBase
                 Array.Empty<string>(),
                 controls: null,
                 cancelToken: CancelToken,
-                cmdlet: this,
+                logger: Logger,
                 ignoreErrors: false
             ).FirstOrDefault();
 
@@ -77,7 +77,7 @@ public class RemoveOpenADObject : OpenADSessionCmdletBase
                 entryDN,
                 controls: null,
                 cancelToken: CancelToken,
-                cmdlet: this
+                logger: Logger
             );
         }
     }

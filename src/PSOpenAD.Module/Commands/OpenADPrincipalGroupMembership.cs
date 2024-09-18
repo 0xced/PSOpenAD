@@ -35,7 +35,7 @@ public class GetOpenADPrincipalGroupMembership : GetOpenADOperation<ADPrincipalI
     {
         foreach (SearchResultEntry principal in Operations.LdapSearchRequest(session.Connection, searchBase,
             SearchScope, 1, session.OperationTimeout, filter, new[] { "memberOf", "objectSid", "primaryGroupID" },
-            serverControls, CancelToken, this, false))
+            serverControls, CancelToken, new CmdletLogger(this), false))
         {
             FilterEquality? primaryGroupFilter = null;
             LDAPFilter groupMembershipFilter;
@@ -82,7 +82,7 @@ public class GetOpenADPrincipalGroupMembership : GetOpenADOperation<ADPrincipalI
             {
                 foreach (SearchResultEntry result in Operations.LdapSearchRequest(session.Connection, searchBase,
                     SearchScope, 0, session.OperationTimeout, groupMembershipFilter, attributes, serverControls,
-                    CancelToken, this, false))
+                    CancelToken, Logger, false))
                 {
                     yield return result;
                 }
@@ -96,6 +96,6 @@ public class GetOpenADPrincipalGroupMembership : GetOpenADOperation<ADPrincipalI
 
     internal override void ProcessOutputObject(PSObject obj)
     {
-        obj.Properties.Add(new PSNoteProperty("QueriedPrincipal", _currentPrincipalDN));
+        obj.Properties.Add(KeyValuePair.Create<string, object?>("QueriedPrincipal", _currentPrincipalDN));
     }
 }

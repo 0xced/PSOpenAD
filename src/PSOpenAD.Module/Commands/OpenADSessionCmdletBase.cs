@@ -3,6 +3,7 @@ using System;
 using System.Linq;
 using System.Management.Automation;
 using System.Threading;
+using Microsoft.Extensions.Logging;
 
 namespace PSOpenAD.Module.Commands;
 
@@ -10,12 +11,19 @@ public abstract class OpenADCancellableCmdlet : PSCmdlet, IDisposable
 {
     private bool _disposed = false;
 
+    protected OpenADCancellableCmdlet()
+    {
+        Logger = new CmdletLogger(this);
+    }
+
     private CancellationTokenSource _cancelTokenSource = new();
 
     protected CancellationToken CancelToken
     {
         get => _cancelTokenSource.Token;
     }
+
+    protected ILogger Logger { get; }
 
     protected override void StopProcessing()
     {
@@ -74,7 +82,7 @@ public abstract class OpenADSessionCmdletBase : OpenADCancellableCmdlet
             StartTLS,
             SessionOption,
             CancelToken,
-            this
+            Logger
         );
 
         // If null, it failed to create session - error records have already been written.
@@ -103,7 +111,7 @@ public abstract class OpenADSessionCmdletBase : OpenADCancellableCmdlet
             new[] { "distinguishedName" },
             null,
             CancelToken,
-            this,
+            Logger,
             false
         ).FirstOrDefault();
 
@@ -124,7 +132,7 @@ public abstract class OpenADSessionCmdletBase : OpenADCancellableCmdlet
         (PSObject[] rawDn, bool _) = session.SchemaMetadata.TransformAttributeValue(
             dnResult.Name,
             dnResult.Values,
-            this);
+            Logger);
         return (string)rawDn[0].BaseObject;
     }
 }

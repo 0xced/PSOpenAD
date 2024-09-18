@@ -5,6 +5,7 @@ using System.Linq;
 using System.Management.Automation;
 using System.Management.Automation.Language;
 using System.Reflection;
+using Microsoft.Extensions.Logging;
 
 namespace PSOpenAD.Module.Commands;
 
@@ -170,7 +171,7 @@ public abstract class GetOpenADOperation<T> : OpenADSessionCmdletBase
             };
         }
 
-        string className = PropertyCompleter.GetClassNameForCommand(MyInvocation.MyCommand.Name);
+        string className = PropertyCompleter.GetClassNameForCommand(MyInvocation.MyCommand?.Name ?? "Get-OpenADUser");
         HashSet<string> requestedProperties = DefaultProperties
             .Select(p => p.Item1)
             .ToHashSet(_caseInsensitiveComparer);
@@ -233,7 +234,7 @@ public abstract class GetOpenADOperation<T> : OpenADSessionCmdletBase
                 result,
                 finalObjectProperties,
                 CreateADObject,
-                this
+                Logger
             );
             ProcessOutputObject(PSObject.AsPSObject(adObj));
             outputResult = true;
@@ -258,7 +259,7 @@ public abstract class GetOpenADOperation<T> : OpenADSessionCmdletBase
     )
     {
         return Operations.LdapSearchRequest(session.Connection, searchBase, SearchScope, 0, session.OperationTimeout,
-            filter, attributes, serverControls, CancelToken, this, false);
+            filter, attributes, serverControls, CancelToken, Logger, false);
     }
 
     internal virtual void ProcessOutputObject(PSObject obj) { }
@@ -277,7 +278,7 @@ public abstract class GetOpenADOperation<T> : OpenADSessionCmdletBase
         SearchResultEntry result,
         HashSet<string>? requestedProperties,
         CreateADObjectDelegate? createFunc,
-        PSCmdlet? cmdlet
+        ILogger logger
     )
     {
         Dictionary<string, (PSObject[], bool)> props = new(_caseInsensitiveComparer);
@@ -286,7 +287,7 @@ public abstract class GetOpenADOperation<T> : OpenADSessionCmdletBase
             props[attribute.Name] = session.SchemaMetadata.TransformAttributeValue(
                 attribute.Name,
                 attribute.Values,
-                cmdlet
+                logger
             );
         }
 
@@ -299,7 +300,7 @@ public abstract class GetOpenADOperation<T> : OpenADSessionCmdletBase
         // This adds a note property for each explicitly requested property, excluding the ones the object
         // naturally exposes. Also adds the DomainController property to denote what DC the response came from.
         // Adds a note property for the DomainController that the response came from.
-        PSObject adPSObj = PSObject.AsPSObject(adObj);
+        System.Management.Automation.PSObject adPSObj = System.Management.Automation.PSObject.AsPSObject(adObj);
         adPSObj.Properties.Add(new PSNoteProperty("DomainController", session.DomainController));
 
         // Adds a note property for all the attributes in the result as well as all the properties requested. If the
@@ -324,6 +325,8 @@ public abstract class GetOpenADOperation<T> : OpenADSessionCmdletBase
                 {
                     value = ((IList<PSObject>)value)[0];
                 }
+
+                value = ((PSObject)value).BaseObject;
             }
 
             // To make the properties more PowerShell like make sure the first char is in upper case.

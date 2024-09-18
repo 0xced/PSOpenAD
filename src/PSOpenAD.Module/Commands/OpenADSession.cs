@@ -82,7 +82,7 @@ public class NewOpenADSession : OpenADCancellableCmdlet
             StartTLS,
             SessionOption,
             CancelToken,
-            this,
+            Logger,
             skipCache: true
         );
 

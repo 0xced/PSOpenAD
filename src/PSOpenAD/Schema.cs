@@ -4,23 +4,39 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using System.Management.Automation;
-using System.Reflection;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
+using Microsoft.Extensions.Logging;
 
 namespace PSOpenAD;
+
+public class PSObject
+{
+    internal PSObject() : this(new object())
+    {
+    }
+
+    private PSObject(object obj)
+    {
+        BaseObject = obj;
+    }
+
+    public object BaseObject { get; }
+
+    public List<KeyValuePair<string, object?>> Properties { get; } = new();
+
+    internal static PSObject AsPSObject(object obj)
+    {
+        return new PSObject(obj);
+    }
+}
 
 internal static class DefaultOverrider
 {
     public delegate (object, bool?) CustomTransform(string attribute, ReadOnlySpan<byte> value);
 
     internal static Dictionary<string, CustomTransform> Overrides { get; } = DefaultOverrides();
-
-    private static PSCodeMethod OidToStringMethod = new(
-        "ToString",
-        typeof(DefaultOverrider).GetMethod(nameof(OidToString), BindingFlags.Public | BindingFlags.Static)!);
 
     private static Dictionary<string, CustomTransform> DefaultOverrides()
     {
@@ -197,15 +213,8 @@ internal static class DefaultOverrider
         {
             oid = new(raw);
         }
-        PSObject.AsPSObject(oid).Members.Add(OidToStringMethod);
 
         return (oid, null);
-    }
-
-    public static string OidToString(PSObject value)
-    {
-        Oid oid = (Oid)value.BaseObject;
-        return string.IsNullOrWhiteSpace(oid.FriendlyName) ? oid.Value! : $"{oid.Value} ({oid.FriendlyName})";
     }
 }
 
@@ -316,7 +325,7 @@ internal sealed class SchemaMetadata
         }
     }
 
-    public (PSObject[], bool) TransformAttributeValue(string attribute, IList<byte[]> value, PSCmdlet? cmdlet)
+    public (PSObject[], bool) TransformAttributeValue(string attribute, IList<byte[]> value, ILogger logger)
     {
         AttributeTypeDescription? attrInfo = null;
         if (_typeInformation.ContainsKey(attribute))
@@ -351,14 +360,15 @@ internal sealed class SchemaMetadata
             }
             catch (Exception e)
             {
-                ErrorRecord rec = new(e, "AttributeParserError", ErrorCategory.ParserError, val);
-                rec.ErrorDetails = new($"Failed to parse {attribute} (OID '{oidSyntax}') - {e.Message}");
-                cmdlet?.WriteError(rec);
+                // ErrorRecord rec = new(e, "AttributeParserError", ErrorCategory.ParserError, val);
+                // rec.ErrorDetails = new($"Failed to parse {attribute} (OID '{oidSyntax}') - {e.Message}");
+                // cmdlet?.WriteError(rec);
+                logger.LogError("TODO: Failed to parse {Attribute} (OID '{Oid}') - {Message}", attribute, oidSyntax, e.Message);
 
                 parsed = new PSObject();
             }
 
-            parsed.Properties.Add(new PSNoteProperty("RawValue", val));
+            parsed.Properties.Add(KeyValuePair.Create<string, object?>("RawValue", val));
             processed.Add(parsed);
         }
 
@@ -404,7 +414,7 @@ internal sealed class SchemaMetadata
         SecurityIdentifier sid => sid.ToByteArray(),
         TimeSpan ts => UTF8Bytes(ts.Ticks.ToString()),
         X509Certificate cert => cert.Export(X509ContentType.Cert),
-        _ => UTF8Bytes(LanguagePrimitives.ConvertTo<string>(value)),
+        _ => UTF8Bytes(Convert.ToString(value) ?? ""),
     };
 
     private void RegisterClassInformation(IEnumerable<ObjectClassDescription> classes)
@@ -448,7 +458,7 @@ internal sealed class SchemaMetadata
             ObjectClass rawInfo = classQueue.Dequeue();
             if (!attempted.Add(rawInfo.Name))
             {
-                throw new RuntimeException($"Found circular loop when attempting to process schema definition of '{rawInfo.Name}'");
+                throw new InvalidOperationException($"Found circular loop when attempting to process schema definition of '{rawInfo.Name}'");
             }
 
             bool ready = true;

@@ -72,7 +72,7 @@ public class RenameOpenADObject : OpenADSessionCmdletBase
                 null,
                 null,
                 CancelToken,
-                this);
+                Logger);
             if (resp.Result.ResultCode != LDAPResultCode.Success)
             {
                 return;
@@ -91,7 +91,7 @@ public class RenameOpenADObject : OpenADSessionCmdletBase
                     searchProperties.ToArray(),
                     null,
                     CancelToken,
-                    this,
+                    Logger,
                     false
                 ).FirstOrDefault()!;
             }
@@ -118,7 +118,7 @@ public class RenameOpenADObject : OpenADSessionCmdletBase
                 searchResult,
                 searchProperties,
                 null,
-                this
+                Logger
             );
             WriteObject(resultObj);
         }
