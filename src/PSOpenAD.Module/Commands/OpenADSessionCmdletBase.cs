@@ -75,14 +75,35 @@ public abstract class OpenADSessionCmdletBase : OpenADCancellableCmdlet
 
     protected override void ProcessRecord()
     {
+        if (string.IsNullOrEmpty(Server))
+        {
+            if (GlobalState.DefaultDC == null)
+            {
+                string msg = "Cannot determine default realm for implicit domain controller.";
+                if (!string.IsNullOrEmpty(GlobalState.DefaultDCError))
+                {
+                    msg += $" {GlobalState.DefaultDCError}";
+                }
+                WriteError(new ErrorRecord(
+                    new ArgumentException(msg),
+                    "NoImplicitDomainController",
+                    ErrorCategory.InvalidArgument,
+                    null));
+                return;
+            }
+
+            Server = GlobalState.DefaultDC.ToString();
+        }
+
         OpenADSession? session = Session ?? OpenADSessionFactory.CreateOrUseDefault(
             Server,
-            Credential,
+            Credential?.GetNetworkCredential(),
             AuthType,
             StartTLS,
             SessionOption,
             CancelToken,
-            Logger
+            Logger,
+            ldapUri => GlobalState.Sessions.Find(s => s.Uri == ldapUri)
         );
 
         // If null, it failed to create session - error records have already been written.

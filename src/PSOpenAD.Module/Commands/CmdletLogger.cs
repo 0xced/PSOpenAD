@@ -9,6 +9,7 @@ namespace PSOpenAD.Module.Commands;
 internal class CmdletLogger : ILogger
 {
     private readonly Cmdlet? _cmdlet;
+    private readonly Stack<IDictionary<string, string>> _scopes = new();
 
     public CmdletLogger(Cmdlet? cmdlet)
     {
@@ -23,18 +24,35 @@ internal class CmdletLogger : ILogger
         {
             string? errorId;
             ErrorCategory errorCategory;
-            if (state is IDictionary<string, string?> stateDictionary)
+            ErrorDetails? errorDetails;
+            if (_scopes.TryPeek(out var scope))
             {
-                errorId = stateDictionary["ErrorId"];
-                errorCategory = Enum.TryParse<ErrorCategory>(stateDictionary["ErrorCategory"], out var category) ? category : ErrorCategory.NotSpecified;
+                errorId = scope["ErrorId"];
+                errorCategory = Enum.TryParse<ErrorCategory>(scope["ErrorCategory"], out var category) ? category : ErrorCategory.NotSpecified;
+                if (scope.TryGetValue("ErrorDetails", out var errorDetailsMessage))
+                {
+                    errorDetails = new ErrorDetails(errorDetailsMessage);
+                    if (scope.TryGetValue("ErrorRecommendedAction", out var recommendedAction))
+                    {
+                        errorDetails.RecommendedAction = recommendedAction;
+                    }
+                }
+                else
+                {
+                    errorDetails = null;
+                }
             }
             else
             {
                 errorId = null;
                 errorCategory = ErrorCategory.NotSpecified;
+                errorDetails = null;
             }
 
-            ErrorRecord error = new(new LDAPException(message), errorId, errorCategory, null);
+            ErrorRecord error = new(exception ?? (errorCategory == ErrorCategory.InvalidArgument ? new ArgumentException(message) : new LDAPException(message)), errorId, errorCategory, null)
+            {
+                ErrorDetails = errorDetails,
+            };
             _cmdlet?.WriteError(error);
         }
         else
@@ -66,5 +84,29 @@ internal class CmdletLogger : ILogger
 
     public bool IsEnabled(LogLevel logLevel) => true;
 
-    public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+    public IDisposable? BeginScope<TState>(TState state) where TState : notnull
+    {
+        if (state is IDictionary<string, string> stateDictionary)
+        {
+            return new Scope<IDictionary<string, string>>(_scopes, stateDictionary);
+        }
+
+        return null;
+    }
+
+    private class Scope<T> : IDisposable
+    {
+        private readonly Stack<T> _stack;
+
+        public Scope(Stack<T> stack, T item)
+        {
+            _stack = stack;
+            _stack.Push(item);
+        }
+
+        public void Dispose()
+        {
+            _stack.Pop();
+        }
+    }
 }

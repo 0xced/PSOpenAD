@@ -15,6 +15,7 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.1" />
     <PackageReference Include="System.Formats.Asn1" Version="6.0.0" PrivateAssets="all" />
+    <PackageReference Include="System.IO.Pipelines" Version="7.0.0" />
     <InternalsVisibleTo Include="PSOpenADTests" />
     <InternalsVisibleTo Include="$(AssemblyName).Module" />
   </ItemGroup>

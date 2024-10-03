@@ -3,7 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
-using System.Management.Automation;
+using System.Net;
 using System.Net.Security;
 using System.Net.Sockets;
 using System.Runtime.InteropServices;
@@ -14,40 +14,21 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
-using PSOpenAD.Module.Commands;
+using PSOpenAD.Native;
 
-namespace PSOpenAD.Module;
+namespace PSOpenAD;
 
 public sealed class OpenADSessionFactory
 {
-    internal static OpenADSession? CreateOrUseDefault(string? server, PSCredential? credential,
+    internal static OpenADSession? CreateOrUseDefault(string server, NetworkCredential? credential,
         AuthenticationMethod auth, bool startTls, OpenADSessionOptions sessionOptions, CancellationToken cancelToken,
-        ILogger logger, bool skipCache = false)
+        ILogger logger, Func<Uri, OpenADSession?> defaultSession)
     {
-        Uri ldapUri;
         if (string.IsNullOrEmpty(server))
-        {
-            if (GlobalState.DefaultDC == null)
-            {
-                string msg = "Cannot determine default realm for implicit domain controller.";
-                if (!string.IsNullOrEmpty(GlobalState.DefaultDCError))
-                {
-                    msg += $" {GlobalState.DefaultDCError}";
-                }
-                logger.LogError("TODO1: {msg}", msg);
-                /*
-                cmdlet.WriteError(new ErrorRecord(
-                    new ArgumentException(msg),
-                    "NoImplicitDomainController",
-                    ErrorCategory.InvalidArgument,
-                    null));
-                    */
-                return null;
-            }
+            throw new ArgumentNullException(nameof(server), "Server cannot be null or empty.");
 
-            ldapUri = GlobalState.DefaultDC;
-        }
-        else if (server.StartsWith("ldap://", true, CultureInfo.InvariantCulture) ||
+        Uri ldapUri;
+        if (server.StartsWith("ldap://", true, CultureInfo.InvariantCulture) ||
             server.StartsWith("ldaps://", true, CultureInfo.InvariantCulture))
         {
             ldapUri = new Uri(server);
@@ -62,15 +43,10 @@ public sealed class OpenADSessionFactory
             }
             else
             {
-                string msg = "Expecting server in the format of hostname or hostname:port with port as an integer";
-                logger.LogError("TODO2: {msg}", msg);
-                /*
-                cmdlet.WriteError(new ErrorRecord(
-                    new ArgumentException(msg),
-                    "InvalidServerPort",
-                    ErrorCategory.InvalidArgument,
-                    null));
-                    */
+                using (logger.BeginScope(new Dictionary<string, string> { ["ErrorId"] = "InvalidServerPort", ["ErrorCategory"] = "InvalidArgument" }))
+                {
+                    logger.LogError("Expecting server in the format of hostname or hostname:port with port as an integer");
+                }
                 return null;
             }
         }
@@ -79,12 +55,7 @@ public sealed class OpenADSessionFactory
             ldapUri = new Uri($"ldap://{server}:389/");
         }
 
-        OpenADSession? session = null;
-        if (!skipCache)
-        {
-            session = GlobalState.Sessions.Find(s => s.Uri == ldapUri);
-        }
-
+        OpenADSession? session = defaultSession(ldapUri);
         if (session == null)
         {
             try
@@ -93,15 +64,24 @@ public sealed class OpenADSessionFactory
             }
             catch (LDAPException e)
             {
-                logger.LogError(@$"TODO: new ErrorRecord({e}, ""LDAPError"", ErrorCategory.ProtocolError, null)");
+                using (logger.BeginScope(new Dictionary<string, string> { ["ErrorId"] = "LDAPError", ["ErrorCategory"] = "ProtocolError" }))
+                {
+                    logger.LogError(e, "Failed to create a LDAP session");
+                }
             }
             catch (AuthenticationException e)
             {
-                logger.LogError(@$"TODO: new ErrorRecord({e}, ""AuthError"", ErrorCategory.AuthenticationError, null)");
+                using (logger.BeginScope(new Dictionary<string, string> { ["ErrorId"] = "AuthError", ["ErrorCategory"] = "AuthenticationError" }))
+                {
+                    logger.LogError(e, "Failed to create a LDAP session");
+                }
             }
             catch (ArgumentException e)
             {
-                logger.LogError(@$"TODO: new ErrorRecord({e}, ""InvalidParameter"", ErrorCategory.InvalidArgument, null)");
+                using (logger.BeginScope(new Dictionary<string, string> { ["ErrorId"] = "InvalidParameter", ["ErrorCategory"] = "InvalidArgument" }))
+                {
+                    logger.LogError(e, "Failed to create a LDAP session");
+                }
             }
 
             return null;
@@ -115,7 +95,7 @@ public sealed class OpenADSessionFactory
 
     public static OpenADSession Create(
         Uri uri,
-        PSCredential? credential,
+        NetworkCredential? credential,
         AuthenticationMethod auth,
         bool startTls,
         OpenADSessionOptions sessionOptions,
@@ -207,6 +187,7 @@ public sealed class OpenADSessionFactory
             // Attempt to get the schema info of the host so the code can parse the raw LDAP attribute values into
             // the required PowerShell type.
             SchemaMetadata schema = QuerySchema(connection, subschemaSubentry, sessionOptions, cancelToken, logger);
+            // TODO: GlobalState.SchemaMetadata = schema;
 
             return new OpenADSession(connection, uri, auth, transportIsTls || authSigned,
                 transportIsTls || authEncrypted, sessionOptions.OperationTimeout, defaultNamingContext, schema,
@@ -338,7 +319,7 @@ public sealed class OpenADSessionFactory
         IADConnection connection,
         Uri uri,
         AuthenticationMethod auth,
-        PSCredential? credential,
+        NetworkCredential? credential,
         ChannelBindings? channelBindings,
         bool transportIsTls,
         OpenADSessionOptions sessionOptions,
@@ -348,17 +329,12 @@ public sealed class OpenADSessionFactory
         out bool encrypted
     )
     {
-        if (credential == PSCredential.Empty)
-        {
-            credential = null;
-        }
-
         if (auth == AuthenticationMethod.Default)
         {
             // Use Certificate if a client certificate is specified, otherwise favour Negotiate auth if it is
             // available. Otherwise use Simple if both a credential and the exchange would be encrypted. If all else
             // fails use an anonymous bind.
-            AuthenticationProvider nego = GlobalState.Providers[AuthenticationMethod.Negotiate];
+            AuthenticationProvider nego = GSSAPI.Providers[AuthenticationMethod.Negotiate];
             if (sessionOptions.ClientCertificate is not null && transportIsTls)
             {
                 auth = AuthenticationMethod.Certificate;
@@ -379,7 +355,7 @@ public sealed class OpenADSessionFactory
             logger.LogTrace("Default authentication mechanism has been set to {Auth}", auth);
         }
 
-        AuthenticationProvider selectedAuth = GlobalState.Providers[auth];
+        AuthenticationProvider selectedAuth = GSSAPI.Providers[auth];
         if (!selectedAuth.Available)
         {
             string msg = $"Authentication {selectedAuth.Method} is not available";
@@ -389,7 +365,7 @@ public sealed class OpenADSessionFactory
         }
 
         string username = credential?.UserName ?? "";
-        string password = credential?.GetNetworkCredential().Password ?? "";
+        string password = credential?.Password ?? "";
 
         signed = false;
         encrypted = false;

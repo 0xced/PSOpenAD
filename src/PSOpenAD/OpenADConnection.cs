@@ -4,14 +4,13 @@ using System.Buffers;
 using System.Collections.Concurrent;
 using System.IO;
 using System.IO.Pipelines;
-using System.Linq;
 using System.Net.Security;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace PSOpenAD.Module;
+namespace PSOpenAD;
 
 internal class OpenADConnection : IADConnection
 {

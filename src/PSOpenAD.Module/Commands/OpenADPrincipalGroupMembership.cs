@@ -35,7 +35,7 @@ public class GetOpenADPrincipalGroupMembership : GetOpenADOperation<ADPrincipalI
     {
         foreach (SearchResultEntry principal in Operations.LdapSearchRequest(session.Connection, searchBase,
             SearchScope, 1, session.OperationTimeout, filter, new[] { "memberOf", "objectSid", "primaryGroupID" },
-            serverControls, CancelToken, new CmdletLogger(this), false))
+            serverControls, CancelToken, Logger, false))
         {
             FilterEquality? primaryGroupFilter = null;
             LDAPFilter groupMembershipFilter;

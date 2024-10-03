@@ -77,13 +77,13 @@ public class NewOpenADSession : OpenADCancellableCmdlet
 
         OpenADSession? session = OpenADSessionFactory.CreateOrUseDefault(
             Uri.ToString(),
-            Credential,
+            Credential?.GetNetworkCredential(),
             AuthType,
             StartTLS,
             SessionOption,
             CancelToken,
             Logger,
-            skipCache: true
+            defaultSession: _ => null
         );
 
         if (session != null)

@@ -286,7 +286,7 @@ internal sealed class SchemaMetadata
         }
 
         // Used by argument completors.
-        GlobalState.SchemaMetadata ??= this;
+        // GlobalState.SchemaMetadata ??= this;
     }
 
     public void RegisterTransformer(string attribute, DefaultOverrider.CustomTransform transformer)
@@ -339,10 +339,10 @@ internal sealed class SchemaMetadata
             }
             catch (Exception e)
             {
-                // ErrorRecord rec = new(e, "AttributeParserError", ErrorCategory.ParserError, val);
-                // rec.ErrorDetails = new($"Failed to parse {attribute} (OID '{oidSyntax}') - {e.Message}");
-                // cmdlet?.WriteError(rec);
-                logger.LogError("TODO: Failed to parse {Attribute} (OID '{Oid}') - {Message}", attribute, oidSyntax, e.Message);
+                using (logger.BeginScope(new Dictionary<string, string> { ["ErrorId"] = "AttributeParserError", ["ErrorCategory"] = "ParserError" }))
+                {
+                    logger.LogError(e, "Failed to parse {Attribute} (OID '{Oid}') - {Message}", attribute, oidSyntax, e.Message);
+                }
 
                 parsed = new object();
             }

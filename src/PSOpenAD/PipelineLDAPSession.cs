@@ -4,7 +4,7 @@ using System.Formats.Asn1;
 using System.IO;
 using System.IO.Pipelines;
 
-namespace PSOpenAD.Module;
+namespace PSOpenAD;
 
 internal class PipelineLDAPSession : LDAPSession
 {
