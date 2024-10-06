@@ -99,7 +99,7 @@ public class SetOpenADObject : OpenADSessionCmdletBase
         }
 
         HashSet<string> searchProperties = OpenADObject.DEFAULT_PROPERTIES
-            .Select(p => p.Item1)
+            .Select(p => p.Name)
             .Union(requestedAttributes)
             .ToHashSet(_caseInsensitiveComparer);
 

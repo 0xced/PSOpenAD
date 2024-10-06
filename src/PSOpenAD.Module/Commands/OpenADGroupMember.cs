@@ -17,7 +17,7 @@ public class GetOpenADGroupMember : GetOpenADOperation<ADPrincipalIdentity>
     [Parameter()]
     public SwitchParameter Recursive { get; set; }
 
-    internal override (string, bool)[] DefaultProperties => OpenADPrincipal.DEFAULT_PROPERTIES;
+    internal override AttributeDescriptor[] DefaultProperties => OpenADPrincipal.DEFAULT_PROPERTIES;
 
     internal override LDAPFilter FilteredClass
         => new FilterEquality("objectCategory", LDAP.LDAPFilter.EncodeSimpleFilterValue("group"));

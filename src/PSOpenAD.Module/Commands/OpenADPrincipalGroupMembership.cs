@@ -18,7 +18,7 @@ public class GetOpenADPrincipalGroupMembership : GetOpenADOperation<ADPrincipalI
     [Parameter()]
     public SwitchParameter Recursive { get; set; }
 
-    internal override (string, bool)[] DefaultProperties => OpenADGroup.DEFAULT_PROPERTIES;
+    internal override AttributeDescriptor[] DefaultProperties => OpenADGroup.DEFAULT_PROPERTIES;
 
     internal override LDAPFilter FilteredClass => new FilterPresent("objectSid");
 

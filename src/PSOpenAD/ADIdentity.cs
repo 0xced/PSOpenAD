@@ -106,7 +106,9 @@ public class ADPrincipalIdentity : ADObjectIdentity
     {
         filter = new FilterPresent("");
 
-        Match m = Regex.Match(value, @"^(?:[^:*?""<>|\/\\]+\\)?(?<username>[^;:""<>|?,=\*\+\\\(\)]{1,20})$");
+        // Group account maximum size is 63 characters
+        // See https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-server-2003/cc776019(v=ws.10)
+        Match m = Regex.Match(value, @"^(?:[^:*?""<>|\/\\]+\\)?(?<username>[^;:""<>|?,=\*\+\\\(\)]{1,63})$");
         if (m.Success)
         {
             string username = m.Groups["username"].Value;

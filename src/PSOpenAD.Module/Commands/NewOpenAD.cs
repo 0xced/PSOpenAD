@@ -95,7 +95,7 @@ public class NewOpenADObject : OpenADSessionCmdletBase
 
         PartialAttribute[] attributesToCreate = attributes.ToArray();
         HashSet<string> searchProperties = OpenADObject.DEFAULT_PROPERTIES
-            .Select(p => p.Item1)
+            .Select(p => p.Name)
             .ToHashSet(_caseInsensitiveComparer);
         searchProperties.UnionWith(attributesToCreate.Select(a => a.Name));
 

@@ -50,7 +50,7 @@ public class RenameOpenADObject : OpenADSessionCmdletBase
         }
 
         HashSet<string> searchProperties = OpenADObject.DEFAULT_PROPERTIES
-            .Select(p => p.Item1)
+            .Select(p => p.Name)
             .ToHashSet(_caseInsensitiveComparer);
 
         DistinguishedName dn = DistinguishedName.Parse(entry);

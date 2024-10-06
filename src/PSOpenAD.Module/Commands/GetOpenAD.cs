@@ -18,7 +18,7 @@ public abstract class GetOpenADOperation<T> : OpenADSessionCmdletBase
 
     internal bool _includeDeleted = false;
 
-    internal abstract (string, bool)[] DefaultProperties { get; }
+    internal abstract AttributeDescriptor[] DefaultProperties { get; }
 
     internal abstract LDAPFilter FilteredClass { get; }
 
@@ -173,7 +173,7 @@ public abstract class GetOpenADOperation<T> : OpenADSessionCmdletBase
 
         string className = PropertyCompleter.GetClassNameForCommand(MyInvocation.MyCommand?.Name ?? "Get-OpenADUser");
         HashSet<string> requestedProperties = DefaultProperties
-            .Select(p => p.Item1)
+            .Select(p => p.Name)
             .ToHashSet(_caseInsensitiveComparer);
         string[] explicitProperties = Property ?? Array.Empty<string>();
         bool showAll = false;
@@ -292,7 +292,7 @@ public abstract class GetOpenADOperation<T> : OpenADSessionCmdletBase
         }
 
         OpenADEntity adObj = createFunc == null ? new OpenADObject(props) : createFunc(props);
-        (string, bool)[] defaultProperties = ((string, bool)[])adObj
+        AttributeDescriptor[] defaultProperties = (AttributeDescriptor[])adObj
             .GetType()
             .GetField("DEFAULT_PROPERTIES", BindingFlags.NonPublic | BindingFlags.Static)
             ?.GetValue(null)!;
@@ -315,7 +315,7 @@ public abstract class GetOpenADOperation<T> : OpenADSessionCmdletBase
             orderedProps = props.Keys;
         }
 
-        foreach (string p in orderedProps.Where(v => !defaultProperties.Contains((v, true))))
+        foreach (string p in orderedProps.Where(v => !defaultProperties.Contains(new AttributeDescriptor(v, true))))
         {
             object? value = null;
             if (props.ContainsKey(p))
@@ -347,7 +347,7 @@ public class GetOpenADObject : GetOpenADOperation<ADObjectIdentity>
     [Parameter()]
     public SwitchParameter IncludeDeletedObjects { get => _includeDeleted; set => _includeDeleted = value; }
 
-    internal override (string, bool)[] DefaultProperties => OpenADObject.DEFAULT_PROPERTIES;
+    internal override AttributeDescriptor[] DefaultProperties => OpenADObject.DEFAULT_PROPERTIES;
 
     internal override LDAPFilter FilteredClass => new FilterPresent("objectClass");
 
@@ -362,7 +362,7 @@ public class GetOpenADObject : GetOpenADOperation<ADObjectIdentity>
 [OutputType(typeof(OpenADComputer))]
 public class GetOpenADComputer : GetOpenADOperation<ADPrincipalIdentityWithDollar>
 {
-    internal override (string, bool)[] DefaultProperties => OpenADComputer.DEFAULT_PROPERTIES;
+    internal override AttributeDescriptor[] DefaultProperties => OpenADComputer.DEFAULT_PROPERTIES;
 
     internal override LDAPFilter FilteredClass
         => new FilterEquality("objectCategory", LDAP.LDAPFilter.EncodeSimpleFilterValue("computer"));
@@ -378,7 +378,7 @@ public class GetOpenADComputer : GetOpenADOperation<ADPrincipalIdentityWithDolla
 [OutputType(typeof(OpenADUser))]
 public class GetOpenADUser : GetOpenADOperation<ADPrincipalIdentity>
 {
-    internal override (string, bool)[] DefaultProperties => OpenADUser.DEFAULT_PROPERTIES;
+    internal override AttributeDescriptor[] DefaultProperties => OpenADUser.DEFAULT_PROPERTIES;
 
     internal override LDAPFilter FilteredClass
         => new FilterAnd(new LDAPFilter[] {
@@ -397,7 +397,7 @@ public class GetOpenADUser : GetOpenADOperation<ADPrincipalIdentity>
 [OutputType(typeof(OpenADGroup))]
 public class GetOpenADGroup : GetOpenADOperation<ADPrincipalIdentity>
 {
-    internal override (string, bool)[] DefaultProperties => OpenADGroup.DEFAULT_PROPERTIES;
+    internal override AttributeDescriptor[] DefaultProperties => OpenADGroup.DEFAULT_PROPERTIES;
 
     internal override LDAPFilter FilteredClass
         => new FilterEquality("objectCategory", LDAP.LDAPFilter.EncodeSimpleFilterValue("group"));
@@ -413,7 +413,7 @@ public class GetOpenADGroup : GetOpenADOperation<ADPrincipalIdentity>
 [OutputType(typeof(OpenADServiceAccount))]
 public class GetOpenADServiceAccount : GetOpenADOperation<ADPrincipalIdentityWithDollar>
 {
-    internal override (string, bool)[] DefaultProperties => OpenADServiceAccount.DEFAULT_PROPERTIES;
+    internal override AttributeDescriptor[] DefaultProperties => OpenADServiceAccount.DEFAULT_PROPERTIES;
 
     internal override LDAPFilter FilteredClass
         => new FilterEquality("objectCategory", LDAP.LDAPFilter.EncodeSimpleFilterValue("msDS-GroupManagedServiceAccount"));
