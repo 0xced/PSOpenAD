@@ -14,6 +14,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
+using PSOpenAD.Native;
 
 namespace PSOpenAD;
 
@@ -21,7 +22,7 @@ internal sealed class OpenADSessionFactory
 {
     internal static async Task<OpenADSession?> CreateOrUseDefaultAsync(string server, NetworkCredential? credential,
         AuthenticationMethod auth, bool startTls, OpenADSessionOptions sessionOptions, CancellationToken cancelToken,
-        ILogger logger, bool skipCache = false)
+        ILogger logger, Func<Uri, OpenADSession?> defaultSession)
     {
         Uri ldapUri;
         if (string.IsNullOrEmpty(server))
@@ -54,12 +55,7 @@ internal sealed class OpenADSessionFactory
             ldapUri = new Uri($"ldap://{server}:389/");
         }
 
-        OpenADSession? session = null;
-        if (!skipCache)
-        {
-            session = GlobalState.Sessions.Find(s => s.Uri == ldapUri);
-        }
-
+        OpenADSession? session = defaultSession(ldapUri);
         if (session == null)
         {
             try
@@ -338,7 +334,7 @@ internal sealed class OpenADSessionFactory
             // Use Certificate if a client certificate is specified, otherwise favour Negotiate auth if it is
             // available. Otherwise use Simple if both a credential and the exchange would be encrypted. If all else
             // fails use an anonymous bind.
-            AuthenticationProvider nego = GlobalState.Providers[AuthenticationMethod.Negotiate];
+            AuthenticationProvider nego = GSSAPI.Providers[AuthenticationMethod.Negotiate];
             if (sessionOptions.ClientCertificate is not null && transportIsTls)
             {
                 auth = AuthenticationMethod.Certificate;
@@ -359,7 +355,7 @@ internal sealed class OpenADSessionFactory
             logger.LogTrace("Default authentication mechanism has been set to {Auth}", auth);
         }
 
-        AuthenticationProvider selectedAuth = GlobalState.Providers[auth];
+        AuthenticationProvider selectedAuth = GSSAPI.Providers[auth];
         if (!selectedAuth.Available)
         {
             string msg = $"Authentication {selectedAuth.Method} is not available";

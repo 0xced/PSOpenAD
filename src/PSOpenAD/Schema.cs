@@ -284,9 +284,6 @@ internal sealed class SchemaMetadata
                 }
             }
         }
-
-        // Used by argument completors.
-        GlobalState.SchemaMetadata ??= this;
     }
 
     public void RegisterTransformer(string attribute, DefaultOverrider.CustomTransform transformer)

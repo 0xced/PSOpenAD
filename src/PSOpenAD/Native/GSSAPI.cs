@@ -144,6 +144,82 @@ internal class GssapiSecContext
 
 internal static class GSSAPI
 {
+    public static readonly Dictionary<AuthenticationMethod, AuthenticationProvider> Providers = new();
+
+    public static GssapiProvider Provider = GssapiProvider.None;
+
+    internal const string MACOS_GSS_FRAMEWORK = "/System/Library/Frameworks/GSS.framework/GSS";
+
+    private static readonly NativeResolver Resolver;
+
+    static GSSAPI()
+    {
+        Resolver = new NativeResolver();
+
+        // While channel binding isn't technically done by both these methods an Active Directory implementation
+        // doesn't validate it's presence so from the purpose of a client it does work even if it's enforced on the
+        // server end.
+        Providers[AuthenticationMethod.Anonymous] = new(AuthenticationMethod.Anonymous, "ANONYMOUS",
+            true, false, "");
+        Providers[AuthenticationMethod.Simple] = new(AuthenticationMethod.Simple, "PLAIN", true,
+            false, "");
+        Providers[AuthenticationMethod.Certificate] = new(AuthenticationMethod.Certificate, "EXTERNAL",
+            true, true, "");
+
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            // Windows always has SSPI available.
+            Provider = GssapiProvider.SSPI;
+            Providers[AuthenticationMethod.Kerberos] = new(AuthenticationMethod.Kerberos, "GSSAPI",
+                true, true, "");
+            Providers[AuthenticationMethod.Negotiate] = new(AuthenticationMethod.Negotiate,
+                "GSS-SPNEGO", true, true, "");
+        }
+        else
+        {
+            LibraryInfo? gssapiLib = Resolver.CacheLibrary(GSSAPI.LIB_GSSAPI, new[] {
+                MACOS_GSS_FRAMEWORK, // macOS GSS Framework (technically Heimdal)
+                "libgssapi_krb5.so.2", // MIT krb5
+                "libgssapi.so.3", "libgssapi.so", // Heimdal
+            });
+            LibraryInfo? krb5Lib = Resolver.CacheLibrary(Kerberos.LIB_KRB5, new[] {
+                "/System/Library/PrivateFrameworks/Heimdal.framework/Heimdal", // macOS Heimdal Framework
+                "libkrb5.so.3", // MIT krb5
+                "libkrb5.so.26", "libkrb5.so", // Heimdal
+            });
+
+            if (gssapiLib == null)
+            {
+                Providers[AuthenticationMethod.Kerberos] = new(AuthenticationMethod.Kerberos,
+                    "GSSAPI", false, false, "GSSAPI library not found");
+                Providers[AuthenticationMethod.Negotiate] = new(AuthenticationMethod.Negotiate,
+                    "GSS-SPNEGO", false, false, "GSSAPI library not found");
+            }
+            else
+            {
+                Providers[AuthenticationMethod.Kerberos] = new(AuthenticationMethod.Kerberos,
+                    "GSSAPI", true, true, "");
+                Providers[AuthenticationMethod.Negotiate] = new(AuthenticationMethod.Negotiate,
+                    "GSS-SPNEGO", true, true, "");
+
+                if (gssapiLib.Path == MACOS_GSS_FRAMEWORK)
+                {
+                    Provider = GssapiProvider.GSSFramework;
+                }
+                else if (NativeLibrary.TryGetExport(gssapiLib.Handle, "krb5_xfree", out var _))
+                {
+                    // While technically exported by the krb5 lib the Heimdal GSSAPI lib depends on it so the same
+                    // symbol will be exported there and we can use that to detect if Heimdal is in use.
+                    Provider = GssapiProvider.Heimdal;
+                }
+                else
+                {
+                    Provider = GssapiProvider.MIT;
+                }
+            }
+        }
+    }
+
     public const string LIB_GSSAPI = "PSOpenAD.libgssapi";
 
     // Name Types
@@ -782,7 +858,7 @@ internal static class GSSAPI
     internal static bool IsIntelMacOS()
     {
         // macOS on x86_64 need to use a specially packed structure when using GSS.Framework.
-        return GlobalState.GssapiProvider == GssapiProvider.GSSFramework && (
+        return Provider == GssapiProvider.GSSFramework && (
             RuntimeInformation.ProcessArchitecture == Architecture.X86 ||
             RuntimeInformation.ProcessArchitecture == Architecture.X64
         );

@@ -102,12 +102,14 @@ public abstract class OpenADSessionCmdletBase : OpenADCancellableCmdlet
             StartTLS,
             SessionOption,
             CancelToken,
-            Logger
+            Logger,
+            defaultSession: ldapUri => GlobalState.Sessions.Find(s => s.Uri == ldapUri)
         ).GetAwaiter().GetResult();
 
         // If null, it failed to create session - error records have already been written.
         if (session != null)
         {
+            GlobalState.RegisterSession(session);
             ProcessRecordWithSession(session);
         }
     }

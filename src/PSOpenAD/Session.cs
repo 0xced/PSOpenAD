@@ -1,6 +1,5 @@
 using PSOpenAD.LDAP;
 using System;
-using System.Collections.Generic;
 using System.Security.Cryptography.X509Certificates;
 using System.Threading.Tasks;
 
@@ -37,9 +36,6 @@ public sealed class OpenADSessionOptions
 /// <summary>The OpenADSession class used to encapsulate a session with the caller.</summary>
 public sealed class OpenADSession
 {
-    /// <summary>The unique identifier for the session.</summary>
-    public int Id { get; }
-
     /// <summary>The URI that was used to connect to the domain controller.</summary>
     public Uri Uri { get; }
 
@@ -84,9 +80,6 @@ public sealed class OpenADSession
         bool isEncrypted, int operationTimeout, string defaultNamingContext, SchemaMetadata schema,
         string[] supportedControls, string dcDnsHostName)
     {
-        Id = GlobalState.SessionCounter;
-        GlobalState.SessionCounter++;
-
         Connection = connection;
         Uri = uri;
         Authentication = auth;
@@ -97,46 +90,10 @@ public sealed class OpenADSession
         DomainController = dcDnsHostName;
         SchemaMetadata = schema;
         SupportedControls = supportedControls;
-
-        GlobalState.Sessions.Add(this);
-        connection.Session.StateChanged += OnStateChanged;
     }
 
     internal async Task CloseAsync()
     {
         await Connection.DisposeAsync();
-        Connection.Session.StateChanged -= OnStateChanged;
     }
-
-    private void OnStateChanged(object? sender, SessionState state)
-    {
-        if (state == SessionState.Closed)
-        {
-            GlobalState.Sessions.Remove(this);
-        }
-    }
-}
-
-internal static class GlobalState
-{
-    /// <summary>Client authentication provider details.</summary>
-    public static Dictionary<AuthenticationMethod, AuthenticationProvider> Providers = new();
-
-    /// <summary>List of sessions that have been opened by the client.</summary>
-    public static List<OpenADSession> Sessions = new();
-
-    /// <summary>Keeps the current session count used to uniquely identify each new session.</summary>
-    public static int SessionCounter = 1;
-
-    /// <summary>Information about LDAP classes and their attributes.</summary>
-    public static SchemaMetadata? SchemaMetadata;
-
-    /// <summary>The GSSAPI/SSPI provider that is used.</summary>
-    public static GssapiProvider GssapiProvider;
-
-    /// <summary>The default domain controller hostname to use when none was provided.</summary>
-    public static Uri? DefaultDC;
-
-    /// <summary>If the default DC couldn't be detected this stores the details.</summary>
-    public static string? DefaultDCError;
 }

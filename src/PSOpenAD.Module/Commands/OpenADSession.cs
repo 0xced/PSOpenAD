@@ -83,11 +83,12 @@ public class NewOpenADSession : OpenADCancellableCmdlet
             SessionOption,
             CancelToken,
             Logger,
-            skipCache: true
+            defaultSession: _ => null
         ).GetAwaiter().GetResult();
 
         if (session != null)
         {
+            GlobalState.RegisterSession(session);
             WriteObject(session);
         }
     }
