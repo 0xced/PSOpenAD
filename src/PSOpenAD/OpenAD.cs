@@ -2,20 +2,72 @@ using PSOpenAD.Security;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Management.Automation;
 
 namespace PSOpenAD;
 
+public record struct AttributeDescriptor(string Name, bool IsSingleValue);
+
 public class OpenADEntity
 {
-    internal static (string, bool)[] DEFAULT_PROPERTIES = Array.Empty<(string, bool)>();
+    internal static AttributeDescriptor[] DEFAULT_PROPERTIES = Array.Empty<AttributeDescriptor>();
 
-    public OpenADEntity(IDictionary<string, (PSObject[], bool)> attributes)
-    {}
+    protected readonly IDictionary<string,(object[] Values, bool IsSingleValue)> Attributes;
 
-    internal static (string, bool)[] ExtendPropertyList((string, bool)[] existing, (string, bool)[] toAdd)
+    public OpenADEntity(IDictionary<string, (object[] Values, bool IsSingleValue)> attributes)
     {
-        List<(string, bool)> properties = existing.ToList();
+        Attributes = attributes ?? throw new ArgumentNullException(nameof(attributes));
+    }
+
+    public IEnumerable<AttributeDescriptor> AttributeDescriptors => Attributes.Select(a => new AttributeDescriptor(a.Key, a.Value.IsSingleValue));
+
+    public T? GetAttribute<T>(string attributeName) where T : class
+    {
+        if (Attributes.TryGetValue(attributeName, out var attribute))
+        {
+            if (attribute.IsSingleValue)
+            {
+                return attribute.Values[0] as T;
+            }
+
+            throw new InvalidOperationException($"{GetType().Name} has multiple \"{attributeName}\" attributes. Use the {nameof(GetAttributes)} (plural) method instead.");
+        }
+
+        return default;
+    }
+
+    public T? GetNullableAttribute<T>(string attributeName) where T : struct
+    {
+        if (Attributes.TryGetValue(attributeName, out var attribute))
+        {
+            if (attribute.IsSingleValue)
+            {
+                return attribute.Values[0] as T?;
+            }
+
+            throw new InvalidOperationException($"{GetType().Name} has multiple \"{attributeName}\" attributes. Use the {nameof(GetAttributes)} (plural) method instead.");
+        }
+
+        return default;
+    }
+
+    public T[] GetAttributes<T>(string attribute)
+    {
+        if (Attributes.TryGetValue(attribute, out var attributeValues))
+        {
+            if (!attributeValues.IsSingleValue)
+            {
+                return attributeValues.Values.OfType<T>().ToArray();
+            }
+
+            throw new InvalidOperationException($"{GetType().Name} has a single \"{attribute}\" attribute. Use the {nameof(GetAttribute)} (singular) method instead.");
+        }
+
+        return Array.Empty<T>();
+    }
+
+    internal static AttributeDescriptor[] ExtendPropertyList(AttributeDescriptor[] existing, AttributeDescriptor[] toAdd)
+    {
+        List<AttributeDescriptor> properties = existing.ToList();
         properties.AddRange(toAdd);
         return properties.ToArray();
     }
@@ -23,161 +75,129 @@ public class OpenADEntity
 
 public class OpenADObject : OpenADEntity
 {
-    internal new static (string, bool)[] DEFAULT_PROPERTIES = ExtendPropertyList(
-        OpenADEntity.DEFAULT_PROPERTIES, new (string, bool)[] {
-            ("distinguishedName", true),
-            ("name", true),
-            ("objectClass", true),
-            ("objectGUID", true),
+    internal new static AttributeDescriptor[] DEFAULT_PROPERTIES = ExtendPropertyList(
+        OpenADEntity.DEFAULT_PROPERTIES, new AttributeDescriptor[] {
+            new("distinguishedName", true),
+            new("name", true),
+            new("objectClass", false),
+            new("objectGUID", true),
         });
 
     public string DistinguishedName { get; }
     public string Name { get; }
-    public string ObjectClass { get; }
+    public string[] ObjectClasses { get; }
     public Guid ObjectGuid { get; }
 
-    public OpenADObject(IDictionary<string, (PSObject[], bool)> attributes)
+    public OpenADObject(IDictionary<string, (object[], bool)> attributes)
         : base(attributes)
     {
-        DistinguishedName = attributes.ContainsKey("distinguishedName")
-            ? (string)attributes["distinguishedName"].Item1[0].BaseObject
-            : "";
-        Name = attributes.ContainsKey("name")
-            ? (string)attributes["name"].Item1[0].BaseObject
-            : "";
-
-        ObjectClass = attributes.ContainsKey("objectClass")
-            ? (string)attributes["objectClass"].Item1.Last().BaseObject
-            : "";
-
-        ObjectGuid = attributes.ContainsKey("objectGUID")
-            ? (Guid)attributes["objectGUID"].Item1[0].BaseObject
-            : Guid.Empty;
+        DistinguishedName = GetAttribute<string>("distinguishedName") ?? "";
+        Name = GetAttribute<string>("name") ?? "";
+        ObjectClasses = GetAttributes<string>("objectClass");
+        ObjectGuid = GetNullableAttribute<Guid>("objectGUID") ?? Guid.Empty;
     }
 }
 
 public class OpenADPrincipal : OpenADObject
 {
-    internal new static (string, bool)[] DEFAULT_PROPERTIES = ExtendPropertyList(
-        OpenADObject.DEFAULT_PROPERTIES, new (string, bool)[] {
-            ("sAMAccountName", true),
-            ("objectSid", false),
+    internal new static AttributeDescriptor[] DEFAULT_PROPERTIES = ExtendPropertyList(
+        OpenADObject.DEFAULT_PROPERTIES, new AttributeDescriptor[] {
+            new("sAMAccountName", true),
+            new("objectSid", false),
         });
 
     public string SamAccountName { get; }
     public SecurityIdentifier SID { get; }
 
-    public OpenADPrincipal(IDictionary<string, (PSObject[], bool)> attributes) : base(attributes)
+    public OpenADPrincipal(IDictionary<string, (object[], bool)> attributes) : base(attributes)
     {
-        SamAccountName = attributes.ContainsKey("sAMAccountName")
-            ? (string)attributes["sAMAccountName"].Item1[0].BaseObject
-            : "";
-
-        SID = attributes.ContainsKey("objectSid")
-            ? (SecurityIdentifier)attributes["objectSid"].Item1[0].BaseObject
-            : new SecurityIdentifier("");
+        SamAccountName = GetAttribute<string>("sAMAccountName") ?? "";
+        SID = GetAttribute<SecurityIdentifier>("objectSid") ?? new SecurityIdentifier("");
     }
 }
 
 public class OpenADAccount : OpenADPrincipal
 {
-    internal new static (string, bool)[] DEFAULT_PROPERTIES = ExtendPropertyList(
-        OpenADPrincipal.DEFAULT_PROPERTIES, new (string, bool)[] {
-            ("userAccountControl", false),
-            ("userPrincipalName", true),
+    internal new static AttributeDescriptor[] DEFAULT_PROPERTIES = ExtendPropertyList(
+        OpenADPrincipal.DEFAULT_PROPERTIES, new AttributeDescriptor[] {
+            new("userAccountControl", false),
+            new("userPrincipalName", true),
         });
 
     public bool Enabled { get; }
 
     public string UserPrincipalName { get; }
 
-    public OpenADAccount(IDictionary<string, (PSObject[], bool)> attributes) : base(attributes)
+    public OpenADAccount(IDictionary<string, (object[], bool)> attributes) : base(attributes)
     {
-        UserAccountControl control = attributes.ContainsKey("userAccountControl")
-            ? (UserAccountControl)attributes["userAccountControl"].Item1[0].BaseObject
-            : UserAccountControl.None;
-
+        UserAccountControl control = GetNullableAttribute<UserAccountControl>("userAccountControl") ?? UserAccountControl.None;
         Enabled = (control & UserAccountControl.AccountDisable) == 0;
-        UserPrincipalName = attributes.ContainsKey("userPrincipalName")
-            ? (string)attributes["userPrincipalName"].Item1[0].BaseObject
-            : "";
+        UserPrincipalName = GetAttribute<string>("userPrincipalName") ?? "";
     }
 }
 
 public class OpenADComputer : OpenADAccount
 {
-    internal new static (string, bool)[] DEFAULT_PROPERTIES = ExtendPropertyList(
-        OpenADAccount.DEFAULT_PROPERTIES, new (string, bool)[] {
-            ("dNSHostName", true),
+    internal new static AttributeDescriptor[] DEFAULT_PROPERTIES = ExtendPropertyList(
+        OpenADAccount.DEFAULT_PROPERTIES, new AttributeDescriptor[] {
+            new("dNSHostName", true),
         });
 
     public string DNSHostName { get; }
 
-    public OpenADComputer(IDictionary<string, (PSObject[], bool)> attributes) : base(attributes)
+    public OpenADComputer(IDictionary<string, (object[], bool)> attributes) : base(attributes)
     {
-        DNSHostName = attributes.ContainsKey("dNSHostName")
-            ? (string)attributes["dNSHostName"].Item1[0].BaseObject
-            : "";
+        DNSHostName = GetAttribute<string>("dNSHostName") ?? "";
     }
 }
 
 public class OpenADServiceAccount : OpenADAccount
 {
-    internal new static (string, bool)[] DEFAULT_PROPERTIES = ExtendPropertyList(
-        OpenADAccount.DEFAULT_PROPERTIES, new (string, bool)[] {
-            ("servicePrincipalName", true),
+    internal new static AttributeDescriptor[] DEFAULT_PROPERTIES = ExtendPropertyList(
+        OpenADAccount.DEFAULT_PROPERTIES, new AttributeDescriptor[] {
+            new("servicePrincipalName", true),
         });
 
     public string[] ServicePrincipalNames { get; }
 
-    public OpenADServiceAccount(IDictionary<string, (PSObject[], bool)> attributes) : base(attributes)
+    public OpenADServiceAccount(IDictionary<string, (object[], bool)> attributes) : base(attributes)
     {
-        ServicePrincipalNames = attributes.ContainsKey("servicePrincipalName")
-            ? attributes["servicePrincipalName"].Item1.Select(v => (string)v.BaseObject).ToArray()
-            : Array.Empty<string>();
+        ServicePrincipalNames = GetAttributes<string>("servicePrincipalName");
     }
 }
 
 public class OpenADUser : OpenADAccount
 {
-    internal new static (string, bool)[] DEFAULT_PROPERTIES = ExtendPropertyList(
-        OpenADAccount.DEFAULT_PROPERTIES, new (string, bool)[] {
-            ("givenName", true),
-            ("sn", false),
+    internal new static AttributeDescriptor[] DEFAULT_PROPERTIES = ExtendPropertyList(
+        OpenADAccount.DEFAULT_PROPERTIES, new AttributeDescriptor[] {
+            new("givenName", true),
+            new("sn", false),
         });
 
     public string GivenName { get; }
     public string Surname { get; }
 
-    public OpenADUser(IDictionary<string, (PSObject[], bool)> attributes) : base(attributes)
+    public OpenADUser(IDictionary<string, (object[], bool)> attributes) : base(attributes)
     {
-        GivenName = attributes.ContainsKey("givenName")
-            ? (string)attributes["givenName"].Item1[0].BaseObject
-            : "";
-
-        Surname = attributes.ContainsKey("sn")
-            ? (string)attributes["sn"].Item1[0].BaseObject
-            : "";
+        GivenName = GetAttribute<string>("givenName") ?? "";
+        Surname = GetAttribute<string>("sn") ?? "";
     }
 }
 
 public class OpenADGroup : OpenADPrincipal
 {
-    internal new static (string, bool)[] DEFAULT_PROPERTIES = ExtendPropertyList(
-        OpenADPrincipal.DEFAULT_PROPERTIES, new (string, bool)[] {
-            ("groupType", false),
+    internal new static AttributeDescriptor[] DEFAULT_PROPERTIES = ExtendPropertyList(
+        OpenADPrincipal.DEFAULT_PROPERTIES, new AttributeDescriptor[] {
+            new("groupType", false),
         });
 
     public ADGroupCategory GroupCategory { get; }
 
     public ADGroupScope GroupScope { get; }
 
-    public OpenADGroup(IDictionary<string, (PSObject[], bool)> attributes) : base(attributes)
+    public OpenADGroup(IDictionary<string, (object[], bool)> attributes) : base(attributes)
     {
-        GroupType groupType = attributes.ContainsKey("groupType")
-            ? (GroupType)attributes["groupType"].Item1[0].BaseObject
-            : GroupType.None;
-
+        GroupType groupType = GetNullableAttribute<GroupType>("groupType") ?? GroupType.None;
         GroupCategory = (groupType & GroupType.IsSecurity) != 0
             ? ADGroupCategory.Security : ADGroupCategory.Distribution;
 

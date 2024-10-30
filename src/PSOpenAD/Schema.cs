@@ -4,11 +4,10 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using System.Management.Automation;
-using System.Reflection;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
+using Microsoft.Extensions.Logging;
 
 namespace PSOpenAD;
 
@@ -17,10 +16,6 @@ internal static class DefaultOverrider
     public delegate (object, bool?) CustomTransform(string attribute, ReadOnlySpan<byte> value);
 
     internal static Dictionary<string, CustomTransform> Overrides { get; } = DefaultOverrides();
-
-    private static PSCodeMethod OidToStringMethod = new(
-        "ToString",
-        typeof(DefaultOverrider).GetMethod(nameof(OidToString), BindingFlags.Public | BindingFlags.Static)!);
 
     private static Dictionary<string, CustomTransform> DefaultOverrides()
     {
@@ -197,15 +192,8 @@ internal static class DefaultOverrider
         {
             oid = new(raw);
         }
-        PSObject.AsPSObject(oid).Members.Add(OidToStringMethod);
 
         return (oid, null);
-    }
-
-    public static string OidToString(PSObject value)
-    {
-        Oid oid = (Oid)value.BaseObject;
-        return string.IsNullOrWhiteSpace(oid.FriendlyName) ? oid.Value! : $"{oid.Value} ({oid.FriendlyName})";
     }
 }
 
@@ -316,7 +304,7 @@ internal sealed class SchemaMetadata
         }
     }
 
-    public (PSObject[], bool) TransformAttributeValue(string attribute, IList<byte[]> value, PSCmdlet? cmdlet)
+    public (object[], bool) TransformAttributeValue(string attribute, IList<byte[]> value, ILogger logger)
     {
         AttributeTypeDescription? attrInfo = null;
         if (_typeInformation.ContainsKey(attribute))
@@ -330,35 +318,33 @@ internal sealed class SchemaMetadata
             customTransform = DefaultOverrider.Overrides[attribute];
 
         bool? isSingleValue = null;
-        List<PSObject> processed = new();
+        List<object> processed = new();
         foreach (byte[] val in value)
         {
-            PSObject parsed;
+            object parsed;
             try
             {
-                object raw;
                 if (customTransform != null)
                 {
-                    (raw, isSingleValue) = customTransform(attribute, val);
+                    (parsed, isSingleValue) = customTransform(attribute, val);
                 }
                 else
                 {
-                    raw = ProcessAttributeValue(oidSyntax, val);
+                    parsed = ProcessAttributeValue(oidSyntax, val);
                 }
-
-                parsed = PSObject.AsPSObject(raw);
-
             }
             catch (Exception e)
             {
-                ErrorRecord rec = new(e, "AttributeParserError", ErrorCategory.ParserError, val);
-                rec.ErrorDetails = new($"Failed to parse {attribute} (OID '{oidSyntax}') - {e.Message}");
-                cmdlet?.WriteError(rec);
+                using (logger.BeginScope(new Dictionary<string, string> { ["ErrorId"] = "AttributeParserError", ["ErrorCategory"] = "ParserError" }))
+                {
+                    logger.LogError(e, "Failed to parse {Attribute} (OID '{Oid}') - {Message}", attribute, oidSyntax, e.Message);
+                }
 
-                parsed = new PSObject();
+                parsed = new object();
             }
 
-            parsed.Properties.Add(new PSNoteProperty("RawValue", val));
+            // Keep the raw value with a connected property? See https://github.com/StephenCleary/ConnectedProperties
+            // ConnectedProperty.Set(parsed, "RawValue", val);
             processed.Add(parsed);
         }
 
@@ -404,7 +390,7 @@ internal sealed class SchemaMetadata
         SecurityIdentifier sid => sid.ToByteArray(),
         TimeSpan ts => UTF8Bytes(ts.Ticks.ToString()),
         X509Certificate cert => cert.Export(X509ContentType.Cert),
-        _ => UTF8Bytes(LanguagePrimitives.ConvertTo<string>(value)),
+        _ => UTF8Bytes(Convert.ToString(value) ?? ""),
     };
 
     private void RegisterClassInformation(IEnumerable<ObjectClassDescription> classes)
@@ -448,7 +434,7 @@ internal sealed class SchemaMetadata
             ObjectClass rawInfo = classQueue.Dequeue();
             if (!attempted.Add(rawInfo.Name))
             {
-                throw new RuntimeException($"Found circular loop when attempting to process schema definition of '{rawInfo.Name}'");
+                throw new InvalidOperationException($"Found circular loop when attempting to process schema definition of '{rawInfo.Name}'");
             }
 
             bool ready = true;

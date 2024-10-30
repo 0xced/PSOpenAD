@@ -99,7 +99,7 @@ public class SetOpenADObject : OpenADSessionCmdletBase
         }
 
         HashSet<string> searchProperties = OpenADObject.DEFAULT_PROPERTIES
-            .Select(p => p.Item1)
+            .Select(p => p.Name)
             .Union(requestedAttributes)
             .ToHashSet(_caseInsensitiveComparer);
 
@@ -113,7 +113,7 @@ public class SetOpenADObject : OpenADSessionCmdletBase
                 changes.ToArray(),
                 null,
                 CancelToken,
-                this
+                Logger
             );
             if (resp.Result.ResultCode != LDAPResultCode.Success)
             {
@@ -133,7 +133,7 @@ public class SetOpenADObject : OpenADSessionCmdletBase
                     searchProperties.ToArray(),
                     null,
                     CancelToken,
-                    this,
+                    Logger,
                     false
                 ).FirstOrDefault()!;
             }
@@ -164,7 +164,7 @@ public class SetOpenADObject : OpenADSessionCmdletBase
             searchResult,
             searchProperties,
             null,
-            this
+            Logger
         );
         WriteObject(resultObj);
     }

@@ -58,7 +58,7 @@ public class GetOpenADRootDSE : OpenADSessionCmdletBase
             requestedProps.ToArray(),
             controls: null,
             cancelToken: CancelToken,
-            cmdlet: this,
+            logger: Logger,
             ignoreErrors: true
         ).FirstOrDefault();
         if (searchRes == null)
@@ -77,7 +77,7 @@ public class GetOpenADRootDSE : OpenADSessionCmdletBase
             searchRes,
             requestedProps,
             static (a) => new OpenADEntity(a),
-            this
+            Logger
         );
         WriteObject(rootDse);
     }

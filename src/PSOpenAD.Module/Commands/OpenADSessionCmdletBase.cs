@@ -3,6 +3,7 @@ using System;
 using System.Linq;
 using System.Management.Automation;
 using System.Threading;
+using Microsoft.Extensions.Logging;
 
 namespace PSOpenAD.Module.Commands;
 
@@ -12,10 +13,17 @@ public abstract class OpenADCancellableCmdlet : PSCmdlet, IDisposable
 
     private CancellationTokenSource _cancelTokenSource = new();
 
+    protected OpenADCancellableCmdlet()
+    {
+        Logger = new CmdletLogger(this);
+    }
+
     protected CancellationToken CancelToken
     {
         get => _cancelTokenSource.Token;
     }
+
+    protected ILogger Logger { get; }
 
     protected override void StopProcessing()
     {
@@ -103,7 +111,7 @@ public abstract class OpenADSessionCmdletBase : OpenADCancellableCmdlet
             new[] { "distinguishedName" },
             null,
             CancelToken,
-            this,
+            Logger,
             false
         ).FirstOrDefault();
 
@@ -121,10 +129,10 @@ public abstract class OpenADSessionCmdletBase : OpenADCancellableCmdlet
             return null;
         }
 
-        (PSObject[] rawDn, bool _) = session.SchemaMetadata.TransformAttributeValue(
+        (object[] rawDn, bool _) = session.SchemaMetadata.TransformAttributeValue(
             dnResult.Name,
             dnResult.Values,
-            this);
-        return (string)rawDn[0].BaseObject;
+            Logger);
+        return (string)rawDn[0];
     }
 }

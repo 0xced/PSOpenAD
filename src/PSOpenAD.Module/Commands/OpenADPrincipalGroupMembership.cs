@@ -18,11 +18,11 @@ public class GetOpenADPrincipalGroupMembership : GetOpenADOperation<ADPrincipalI
     [Parameter()]
     public SwitchParameter Recursive { get; set; }
 
-    internal override (string, bool)[] DefaultProperties => OpenADGroup.DEFAULT_PROPERTIES;
+    internal override AttributeDescriptor[] DefaultProperties => OpenADGroup.DEFAULT_PROPERTIES;
 
     internal override LDAPFilter FilteredClass => new FilterPresent("objectSid");
 
-    internal override OpenADObject CreateADObject(Dictionary<string, (PSObject[], bool)> attributes)
+    internal override OpenADObject CreateADObject(Dictionary<string, (object[], bool)> attributes)
         => new OpenADGroup(attributes);
 
     internal override IEnumerable<SearchResultEntry> SearchRequest(
@@ -35,7 +35,7 @@ public class GetOpenADPrincipalGroupMembership : GetOpenADOperation<ADPrincipalI
     {
         foreach (SearchResultEntry principal in Operations.LdapSearchRequest(session.Connection, searchBase,
             SearchScope, 1, session.OperationTimeout, filter, new[] { "memberOf", "objectSid", "primaryGroupID" },
-            serverControls, CancelToken, this, false))
+            serverControls, CancelToken, Logger, false))
         {
             FilterEquality? primaryGroupFilter = null;
             LDAPFilter groupMembershipFilter;
@@ -82,7 +82,7 @@ public class GetOpenADPrincipalGroupMembership : GetOpenADOperation<ADPrincipalI
             {
                 foreach (SearchResultEntry result in Operations.LdapSearchRequest(session.Connection, searchBase,
                     SearchScope, 0, session.OperationTimeout, groupMembershipFilter, attributes, serverControls,
-                    CancelToken, this, false))
+                    CancelToken, Logger, false))
                 {
                     yield return result;
                 }

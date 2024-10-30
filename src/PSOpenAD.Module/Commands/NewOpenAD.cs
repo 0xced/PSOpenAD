@@ -95,7 +95,7 @@ public class NewOpenADObject : OpenADSessionCmdletBase
 
         PartialAttribute[] attributesToCreate = attributes.ToArray();
         HashSet<string> searchProperties = OpenADObject.DEFAULT_PROPERTIES
-            .Select(p => p.Item1)
+            .Select(p => p.Name)
             .ToHashSet(_caseInsensitiveComparer);
         searchProperties.UnionWith(attributesToCreate.Select(a => a.Name));
 
@@ -109,7 +109,7 @@ public class NewOpenADObject : OpenADSessionCmdletBase
                 attributesToCreate,
                 null,
                 CancelToken,
-                this
+                Logger
             );
             if (resp.Result.ResultCode != LDAPResultCode.Success)
             {
@@ -129,7 +129,7 @@ public class NewOpenADObject : OpenADSessionCmdletBase
                     searchProperties.ToArray(),
                     null,
                     CancelToken,
-                    this,
+                    Logger,
                     false
                 ).FirstOrDefault();
 
@@ -167,7 +167,7 @@ public class NewOpenADObject : OpenADSessionCmdletBase
             searchResult,
             searchProperties,
             null,
-            this
+            Logger
         );
         WriteObject(resultObj);
     }

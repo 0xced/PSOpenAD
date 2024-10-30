@@ -17,12 +17,12 @@ public class GetOpenADGroupMember : GetOpenADOperation<ADPrincipalIdentity>
     [Parameter()]
     public SwitchParameter Recursive { get; set; }
 
-    internal override (string, bool)[] DefaultProperties => OpenADPrincipal.DEFAULT_PROPERTIES;
+    internal override AttributeDescriptor[] DefaultProperties => OpenADPrincipal.DEFAULT_PROPERTIES;
 
     internal override LDAPFilter FilteredClass
         => new FilterEquality("objectCategory", LDAP.LDAPFilter.EncodeSimpleFilterValue("group"));
 
-    internal override OpenADObject CreateADObject(Dictionary<string, (PSObject[], bool)> attributes)
+    internal override OpenADObject CreateADObject(Dictionary<string, (object[], bool)> attributes)
         => new OpenADPrincipal(attributes);
 
     internal override IEnumerable<SearchResultEntry> SearchRequest(
@@ -35,7 +35,7 @@ public class GetOpenADGroupMember : GetOpenADOperation<ADPrincipalIdentity>
     {
         foreach (SearchResultEntry group in Operations.LdapSearchRequest(session.Connection, searchBase,
             SearchScope, 1, session.OperationTimeout, filter, new[] { "primaryGroupToken" }, serverControls,
-            CancelToken, this, false))
+            CancelToken, Logger, false))
         {
             // use memberOf rather than member to make recursive search easier & avoid paging
             LDAPFilter memberOfFilter;
@@ -79,7 +79,7 @@ public class GetOpenADGroupMember : GetOpenADOperation<ADPrincipalIdentity>
             {
                 foreach (SearchResultEntry result in Operations.LdapSearchRequest(session.Connection, searchBase,
                     SearchScope, 0, session.OperationTimeout, memberOfFilter, attributes, serverControls, CancelToken,
-                    this, false))
+                    Logger, false))
                 {
                     yield return result;
                 }
