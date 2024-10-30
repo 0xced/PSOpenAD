@@ -171,7 +171,7 @@ public abstract class GetOpenADOperation<T> : OpenADSessionCmdletBase
             };
         }
 
-        string className = PropertyCompleter.GetClassNameForCommand(MyInvocation.MyCommand?.Name ?? "Get-OpenADUser");
+        string className = PropertyCompleter.GetClassNameForCommand(MyInvocation.MyCommand?.Name ?? "");
         HashSet<string> requestedProperties = DefaultProperties
             .Select(p => p.Name)
             .ToHashSet(_caseInsensitiveComparer);

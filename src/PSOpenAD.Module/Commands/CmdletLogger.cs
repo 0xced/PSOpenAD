@@ -6,80 +6,74 @@ using PSOpenAD.LDAP;
 
 namespace PSOpenAD.Module.Commands;
 
-internal class CmdletLogger : ILogger
+internal class CmdletLogger(Cmdlet cmdlet) : ILogger
 {
-    private readonly Cmdlet? _cmdlet;
     private readonly Stack<IDictionary<string, string>> _scopes = new();
-
-    public CmdletLogger(Cmdlet? cmdlet)
-    {
-        _cmdlet = cmdlet;
-    }
 
     public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
     {
         var message = formatter(state, exception);
 
-        if (logLevel == LogLevel.Error)
+        switch (logLevel)
         {
-            string? errorId;
-            ErrorCategory errorCategory;
-            ErrorDetails? errorDetails;
-            if (_scopes.TryPeek(out var scope))
+            case LogLevel.Trace:
+                cmdlet.WriteVerbose(message);
+                break;
+            case LogLevel.Debug:
+                cmdlet.WriteDebug(message);
+                break;
+            case LogLevel.Information:
+                cmdlet.WriteInformation(new InformationRecord(message, null));
+                break;
+            case LogLevel.Warning:
+                cmdlet.WriteWarning(message);
+                break;
+            case LogLevel.Error:
+                cmdlet.WriteError(CreateErrorRecord(message, exception));
+                break;
+            case LogLevel.Critical:
+                cmdlet.WriteWarning(message);
+                break;
+            case LogLevel.None:
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(logLevel), logLevel, null);
+        }
+    }
+
+    private ErrorRecord CreateErrorRecord(string message, Exception? exception)
+    {
+        string? errorId;
+        ErrorCategory errorCategory;
+        ErrorDetails? errorDetails;
+        if (_scopes.TryPeek(out var scope))
+        {
+            errorId = scope["ErrorId"];
+            errorCategory = Enum.TryParse<ErrorCategory>(scope["ErrorCategory"], out var category) ? category : ErrorCategory.NotSpecified;
+            if (scope.TryGetValue("ErrorDetails", out var errorDetailsMessage))
             {
-                errorId = scope["ErrorId"];
-                errorCategory = Enum.TryParse<ErrorCategory>(scope["ErrorCategory"], out var category) ? category : ErrorCategory.NotSpecified;
-                if (scope.TryGetValue("ErrorDetails", out var errorDetailsMessage))
+                errorDetails = new ErrorDetails(errorDetailsMessage);
+                if (scope.TryGetValue("ErrorRecommendedAction", out var recommendedAction))
                 {
-                    errorDetails = new ErrorDetails(errorDetailsMessage);
-                    if (scope.TryGetValue("ErrorRecommendedAction", out var recommendedAction))
-                    {
-                        errorDetails.RecommendedAction = recommendedAction;
-                    }
-                }
-                else
-                {
-                    errorDetails = null;
+                    errorDetails.RecommendedAction = recommendedAction;
                 }
             }
             else
             {
-                errorId = null;
-                errorCategory = ErrorCategory.NotSpecified;
                 errorDetails = null;
             }
-
-            ErrorRecord error = new(exception ?? (errorCategory == ErrorCategory.InvalidArgument ? new ArgumentException(message) : new LDAPException(message)), errorId, errorCategory, null)
-            {
-                ErrorDetails = errorDetails,
-            };
-            _cmdlet?.WriteError(error);
         }
         else
         {
-            switch (logLevel)
-            {
-                case LogLevel.Trace:
-                    _cmdlet?.WriteVerbose(message);
-                    break;
-                case LogLevel.Debug:
-                    _cmdlet?.WriteDebug(message);
-                    break;
-                case LogLevel.Information:
-                    _cmdlet?.WriteInformation(new InformationRecord(message, null));
-                    break;
-                case LogLevel.Warning:
-                    _cmdlet?.WriteWarning(message);
-                    break;
-                case LogLevel.Critical:
-                    _cmdlet?.WriteWarning(message);
-                    break;
-                case LogLevel.None:
-                    break;
-                default:
-                    throw new ArgumentOutOfRangeException(nameof(logLevel), logLevel, null);
-            }
+            errorId = null;
+            errorCategory = ErrorCategory.NotSpecified;
+            errorDetails = null;
         }
+
+        return new ErrorRecord(exception ?? (errorCategory == ErrorCategory.InvalidArgument ? new ArgumentException(message) : new LDAPException(message)), errorId, errorCategory, null)
+        {
+            ErrorDetails = errorDetails,
+        };
     }
 
     public bool IsEnabled(LogLevel logLevel) => true;

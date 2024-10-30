@@ -35,7 +35,7 @@ public class OpenADEntity
         return default;
     }
 
-    public T? GetStructAttribute<T>(string attributeName) where T : struct
+    public T? GetNullableAttribute<T>(string attributeName) where T : struct
     {
         if (Attributes.TryGetValue(attributeName, out var attribute))
         {
@@ -56,7 +56,7 @@ public class OpenADEntity
         {
             if (!attributeValues.IsSingleValue)
             {
-                return attributeValues.Values.Cast<T>().ToArray();
+                return attributeValues.Values.OfType<T>().ToArray();
             }
 
             throw new InvalidOperationException($"{GetType().Name} has a single \"{attribute}\" attribute. Use the {nameof(GetAttribute)} (singular) method instead.");
@@ -94,7 +94,7 @@ public class OpenADObject : OpenADEntity
         DistinguishedName = GetAttribute<string>("distinguishedName") ?? "";
         Name = GetAttribute<string>("name") ?? "";
         ObjectClasses = GetAttributes<string>("objectClass");
-        ObjectGuid = GetStructAttribute<Guid>("objectGUID") ?? Guid.Empty;
+        ObjectGuid = GetNullableAttribute<Guid>("objectGUID") ?? Guid.Empty;
     }
 }
 
@@ -130,7 +130,7 @@ public class OpenADAccount : OpenADPrincipal
 
     public OpenADAccount(IDictionary<string, (object[], bool)> attributes) : base(attributes)
     {
-        UserAccountControl control = GetStructAttribute<UserAccountControl>("userAccountControl") ?? UserAccountControl.None;
+        UserAccountControl control = GetNullableAttribute<UserAccountControl>("userAccountControl") ?? UserAccountControl.None;
         Enabled = (control & UserAccountControl.AccountDisable) == 0;
         UserPrincipalName = GetAttribute<string>("userPrincipalName") ?? "";
     }
@@ -197,7 +197,7 @@ public class OpenADGroup : OpenADPrincipal
 
     public OpenADGroup(IDictionary<string, (object[], bool)> attributes) : base(attributes)
     {
-        GroupType groupType = GetStructAttribute<GroupType>("groupType") ?? GroupType.None;
+        GroupType groupType = GetNullableAttribute<GroupType>("groupType") ?? GroupType.None;
         GroupCategory = (groupType & GroupType.IsSecurity) != 0
             ? ADGroupCategory.Security : ADGroupCategory.Distribution;
 
