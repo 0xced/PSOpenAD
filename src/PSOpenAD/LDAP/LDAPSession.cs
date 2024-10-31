@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Formats.Asn1;
 using System.IO;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace PSOpenAD.LDAP;
 
@@ -49,21 +50,20 @@ internal abstract class LDAPSession
         _logWriter = writer;
     }
 
-    public virtual void CloseConnection()
-    {}
+    public virtual Task CloseConnectionAsync() => Task.CompletedTask;
 
-    public abstract void WriteData(AsnWriter writer);
+    public abstract Task WriteDataAsync(AsnWriter writer);
 
-    public void Close()
+    public async Task CloseAsync()
     {
         if (State != SessionState.Closed)
         {
             State = SessionState.Closed;
-            CloseConnection();
+            await CloseConnectionAsync();
         }
     }
 
-    public int Add(string entry, PartialAttribute[] attributes, IEnumerable<LDAPControl>? controls = null)
+    public async Task<int> AddAsync(string entry, PartialAttribute[] attributes, IEnumerable<LDAPControl>? controls = null)
     {
         if (State == SessionState.Closed)
         {
@@ -76,12 +76,12 @@ internal abstract class LDAPSession
         }
 
         AddRequest request = new(NextMessageId(), controls, entry, attributes);
-        PutRequest(request);
+        await PutRequestAsync(request);
 
         return request.MessageId;
     }
 
-    public int Bind(string dn, string password, IEnumerable<LDAPControl>? controls = null)
+    public async Task<int> BindAsync(string dn, string password, IEnumerable<LDAPControl>? controls = null)
     {
         if (State != SessionState.BeforeOpen)
         {
@@ -91,12 +91,12 @@ internal abstract class LDAPSession
 
         State = SessionState.Binding;
         BindRequestSimple request = new(NextMessageId(), controls, Version, dn, password);
-        PutRequest(request);
+        await PutRequestAsync(request);
 
         return request.MessageId;
     }
 
-    public int SaslBind(string dn, string mechanism, byte[] cred, IEnumerable<LDAPControl>? controls = null)
+    public async Task<int> SaslBindAsync(string dn, string mechanism, byte[] cred, IEnumerable<LDAPControl>? controls = null)
     {
         if (State != SessionState.BeforeOpen && State != SessionState.Binding)
         {
@@ -106,12 +106,12 @@ internal abstract class LDAPSession
 
         State = SessionState.Binding;
         BindRequestSasl request = new(NextMessageId(), controls, Version, dn, mechanism, cred);
-        PutRequest(request);
+        await PutRequestAsync(request);
 
         return request.MessageId;
     }
 
-    public int Delete(string distinguishedName, IEnumerable<LDAPControl>? controls = null)
+    public async Task<int> DeleteAsync(string distinguishedName, IEnumerable<LDAPControl>? controls = null)
     {
         if (State == SessionState.Closed)
         {
@@ -120,12 +120,12 @@ internal abstract class LDAPSession
         }
 
         DelRequest request = new(NextMessageId(), controls, distinguishedName);
-        PutRequest(request);
+        await PutRequestAsync(request);
 
         return request.MessageId;
     }
 
-    public int ExtendedRequest(string name, byte[]? value = null, IEnumerable<LDAPControl>? controls = null)
+    public async Task<int> ExtendedRequestAsync(string name, byte[]? value = null, IEnumerable<LDAPControl>? controls = null)
     {
         if (State == SessionState.Closed)
         {
@@ -134,12 +134,12 @@ internal abstract class LDAPSession
         }
 
         ExtendedRequest request = new(NextMessageId(), controls, name, value);
-        PutRequest(request);
+        await PutRequestAsync(request);
 
         return request.MessageId;
     }
 
-    public int Modify(
+    public async Task<int> ModifyAsync(
         string distinguishedName,
         ModifyChange[] changes,
         IEnumerable<LDAPControl>? controls = null)
@@ -155,12 +155,12 @@ internal abstract class LDAPSession
         }
 
         ModifyRequest request = new(NextMessageId(), controls, distinguishedName, changes);
-        PutRequest(request);
+        await PutRequestAsync(request);
 
         return request.MessageId;
     }
 
-    public int ModifyDN(
+    public async Task<int> ModifyDNAsync(
         string entry,
         string newRDN,
         bool deleteOldRDN,
@@ -174,12 +174,12 @@ internal abstract class LDAPSession
         }
 
         ModifyDNRequest request = new(NextMessageId(), controls, entry, newRDN, deleteOldRDN, newSuperior);
-        PutRequest(request);
+        await PutRequestAsync(request);
 
         return request.MessageId;
     }
 
-    public int Search(string baseObject, SearchScope scope, DereferencingPolicy derefAliases, int sizeLimit,
+    public async Task<int> SearchAsync(string baseObject, SearchScope scope, DereferencingPolicy derefAliases, int sizeLimit,
         int timeLimit, bool typesOnly, LDAPFilter filter, string[] attributeSelection,
         IEnumerable<LDAPControl>? controls = null)
     {
@@ -191,19 +191,19 @@ internal abstract class LDAPSession
 
         SearchRequest request = new(NextMessageId(), controls, baseObject, scope, derefAliases,
             sizeLimit, timeLimit, typesOnly, filter, attributeSelection);
-        PutRequest(request);
+        await PutRequestAsync(request);
 
         return request.MessageId;
     }
 
-    public int Unbind()
+    public async Task<int> UnbindAsync()
     {
         if (State != SessionState.Opened)
             throw new InvalidOperationException("Cannot perform an Unbind until the connection is opened");
 
         UnbindRequest request = new(NextMessageId(), null);
-        PutRequest(request);
-        Close();
+        await PutRequestAsync(request);
+        await CloseAsync();
 
         return request.MessageId;
     }
@@ -241,7 +241,7 @@ internal abstract class LDAPSession
         }
     }
 
-    private void PutRequest(LDAPMessage message)
+    private async Task PutRequestAsync(LDAPMessage message)
     {
         AsnWriter writer = new(AsnEncodingRules.BER);
         using (AsnWriter.Scope _1 = writer.PushSequence())
@@ -257,7 +257,7 @@ internal abstract class LDAPSession
             }
         }
 
-        WriteData(writer);
+        await WriteDataAsync(writer);
     }
 
     private int NextMessageId()

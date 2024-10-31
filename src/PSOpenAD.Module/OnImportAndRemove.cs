@@ -236,7 +236,7 @@ public class OnModuleImportAndRemove : IModuleAssemblyInitializer, IModuleAssemb
     public void OnRemove(PSModuleInfo module)
     {
         foreach (OpenADSession session in GlobalState.Sessions)
-            session.Close();
+            session.CloseAsync().GetAwaiter().GetResult();
 
         GlobalState.Sessions = new();
         Resolver?.Dispose();

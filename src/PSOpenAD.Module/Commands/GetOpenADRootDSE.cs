@@ -48,7 +48,7 @@ public class GetOpenADRootDSE : OpenADSessionCmdletBase
         HashSet<string> requestedProps = _defaultAttributes
             .Union(Property ?? Array.Empty<string>())
             .ToHashSet();
-        SearchResultEntry? searchRes = Operations.LdapSearchRequest(
+        SearchResultEntry? searchRes = Operations.LdapSearchRequestAsync(
             session.Connection,
             "",
             SearchScope.Base,
@@ -60,7 +60,7 @@ public class GetOpenADRootDSE : OpenADSessionCmdletBase
             cancelToken: CancelToken,
             logger: Logger,
             ignoreErrors: true
-        ).FirstOrDefault();
+        ).FirstOrDefaultAsync().GetAwaiter().GetResult();
         if (searchRes == null)
         {
             ErrorRecord err = new(

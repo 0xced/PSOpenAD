@@ -3,8 +3,9 @@ using System;
 using System.Formats.Asn1;
 using System.IO;
 using System.IO.Pipelines;
+using System.Threading.Tasks;
 
-namespace PSOpenAD.Module;
+namespace PSOpenAD;
 
 internal class PipelineLDAPSession : LDAPSession
 {
@@ -15,18 +16,18 @@ internal class PipelineLDAPSession : LDAPSession
     public PipelineLDAPSession(int version = 3, StreamWriter? writer = null) : base(version, writer)
     {}
 
-    public override void CloseConnection()
+    public override async Task CloseConnectionAsync()
     {
-        _outgoing.Writer.Complete();
-        _outgoing.Writer.FlushAsync().GetAwaiter().GetResult();
+        await _outgoing.Writer.CompleteAsync();
+        await _outgoing.Writer.FlushAsync();
     }
 
-    public override void WriteData(AsnWriter writer)
+    public override async Task WriteDataAsync(AsnWriter writer)
     {
         Memory<byte> buffer = _outgoing.Writer.GetMemory(writer.GetEncodedLength());
         TraceMsg("SEND", buffer.Span);
         int written = writer.Encode(buffer.Span);
         _outgoing.Writer.Advance(written);
-        _outgoing.Writer.FlushAsync().GetAwaiter().GetResult();
+        await _outgoing.Writer.FlushAsync();
     }
 }

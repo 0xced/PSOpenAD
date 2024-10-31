@@ -258,8 +258,8 @@ public abstract class GetOpenADOperation<T> : OpenADSessionCmdletBase
         IList<LDAPControl>? serverControls
     )
     {
-        return Operations.LdapSearchRequest(session.Connection, searchBase, SearchScope, 0, session.OperationTimeout,
-            filter, attributes, serverControls, CancelToken, Logger, false);
+        return Operations.LdapSearchRequestAsync(session.Connection, searchBase, SearchScope, 0, session.OperationTimeout,
+            filter, attributes, serverControls, CancelToken, Logger, false).ToListAsync().GetAwaiter().GetResult();
     }
 
     internal virtual void ProcessOutputObject(PSObject obj) { }

@@ -75,16 +75,16 @@ public class NewOpenADSession : OpenADCancellableCmdlet
             Uri = new Uri($"{scheme}://{ComputerName}:{port}");
         }
 
-        OpenADSession? session = OpenADSessionFactory.CreateOrUseDefault(
+        OpenADSession? session = OpenADSessionFactory.CreateOrUseDefaultAsync(
             Uri.ToString(),
-            Credential,
+            Credential?.GetNetworkCredential(),
             AuthType,
             StartTLS,
             SessionOption,
             CancelToken,
-            this,
+            Logger,
             skipCache: true
-        );
+        ).GetAwaiter().GetResult();
 
         if (session != null)
         {
@@ -111,7 +111,7 @@ public class RemoveOpenADSession : PSCmdlet
         foreach (OpenADSession s in Session)
         {
             WriteVerbose($"Closing connection to {s.Uri}");
-            s.Close();
+            s.CloseAsync().GetAwaiter().GetResult();
         }
     }
 }

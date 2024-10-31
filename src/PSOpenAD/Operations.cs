@@ -2,7 +2,9 @@ using System;
 using PSOpenAD.LDAP;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Threading;
+using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 
 namespace PSOpenAD;
@@ -17,7 +19,7 @@ internal static class Operations
     /// <param name="cancelToken">Token to cancel any network IO waits</param>
     /// <param name="logger">The logger.</param>
     /// <returns>The AddResponse from the request.</returns>
-    public static AddResponse LdapAddRequest(
+    public static async Task<AddResponse> LdapAddRequestAsync(
         IADConnection connection,
         string entry,
         PartialAttribute[] attributes,
@@ -28,7 +30,7 @@ internal static class Operations
     {
         logger.LogTrace("Starting LDAP add request for {Entry}", entry);
 
-        int addId = connection.Session.Add(entry, attributes, controls: controls);
+        int addId = await connection.Session.AddAsync(entry, attributes, controls: controls);
         AddResponse addRes = (AddResponse)connection.WaitForMessage(addId, cancelToken: cancelToken);
         connection.RemoveMessageQueue(addId);
 
@@ -50,7 +52,7 @@ internal static class Operations
     /// <param name="cancelToken">Token to cancel any network IO waits</param>
     /// <param name="logger">The PSCmdlet that is running the operation.</param>
     /// <returns>The DelResponse from the request.</returns>
-    public static DelResponse LdapDeleteRequest(
+    public static async Task<DelResponse> LdapDeleteRequestAsync(
         IADConnection connection,
         string entry,
         IList<LDAPControl>? controls,
@@ -60,7 +62,7 @@ internal static class Operations
     {
         logger.LogTrace("Starting LDAP delete request for {Entry}", entry);
 
-        int addId = connection.Session.Delete(entry, controls: controls);
+        int addId = await connection.Session.DeleteAsync(entry, controls: controls);
         DelResponse delRes = (DelResponse)connection.WaitForMessage(addId, cancelToken: cancelToken);
         connection.RemoveMessageQueue(addId);
 
@@ -83,7 +85,7 @@ internal static class Operations
     /// <param name="cancelToken">Token to cancel any network IO waits</param>
     /// <param name="logger">The logger.</param>
     /// <returns>The ModifyResponse from the request.</returns>
-    public static ModifyResponse LdapModifyRequest(
+    public static async Task<ModifyResponse> LdapModifyRequestAsync(
         IADConnection connection,
         string entry,
         ModifyChange[] changes,
@@ -94,7 +96,7 @@ internal static class Operations
     {
         logger.LogTrace("Starting LDAP modify request for {Entry}", entry);
 
-        int addId = connection.Session.Modify(entry, changes, controls: controls);
+        int addId = await connection.Session.ModifyAsync(entry, changes, controls: controls);
         ModifyResponse modifyRes = (ModifyResponse)connection.WaitForMessage(addId, cancelToken: cancelToken);
         connection.RemoveMessageQueue(addId);
 
@@ -119,7 +121,7 @@ internal static class Operations
     /// <param name="cancelToken">Token to cancel any network IO waits</param>
     /// <param name="logger">The logger.</param>
     /// <returns>The ModifyDNResponse from the request.</returns>
-    public static ModifyDNResponse LdapModifyDNRequest(
+    public static async Task<ModifyDNResponse> LdapModifyDNRequestAsync(
         IADConnection connection,
         string entry,
         string newRDN,
@@ -133,7 +135,7 @@ internal static class Operations
         string targetDN = string.IsNullOrWhiteSpace(newSuperior) ? string.Empty : $",{newSuperior}";
         logger.LogTrace("Starting LDAP modify DN request for {Entry}->{NewRDN}{TargetDN}", entry, newRDN, targetDN);
 
-        int addId = connection.Session.ModifyDN(
+        int addId = await connection.Session.ModifyDNAsync(
             entry,
             newRDN,
             deleteOldRDN,
@@ -165,7 +167,7 @@ internal static class Operations
     /// <param name="logger">The logger.</param>
     /// <param name="ignoreErrors">Ignore errors and do not write to the error stream.</param>
     /// <returns>Yields each returned result containing the attributes requested from the search request.</returns>
-    public static IEnumerable<SearchResultEntry> LdapSearchRequest(
+    public static async IAsyncEnumerable<SearchResultEntry> LdapSearchRequestAsync(
         IADConnection connection,
         string searchBase,
         SearchScope scope,
@@ -174,7 +176,7 @@ internal static class Operations
         LDAPFilter filter,
         string[] attributes,
         IList<LDAPControl>? controls,
-        CancellationToken cancelToken,
+        [EnumeratorCancellation] CancellationToken cancelToken,
         ILogger logger,
         bool ignoreErrors
     )
@@ -192,7 +194,7 @@ internal static class Operations
             {
                 List<LDAPControl> copiedControls = controls?.ToList() ?? new();
                 copiedControls.Add(new PagedResultControl(false, paginationLimit, paginationCookie));
-                searchId = connection.Session.Search(searchBase, scope, DereferencingPolicy.Never, sizeLimit,
+                searchId = await connection.Session.SearchAsync(searchBase, scope, DereferencingPolicy.Never, sizeLimit,
                     timeLimit / 1000, false, filter, attributes, copiedControls);
 
                 request = false;

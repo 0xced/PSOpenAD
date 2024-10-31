@@ -62,7 +62,7 @@ public class MoveOpenADObject : OpenADSessionCmdletBase
         WriteVerbose($"Moving '{entry}' -> '{newDN}'");
         if (ShouldProcess($"'{entry}' -> '{newDN}'", "Rename"))
         {
-            ModifyDNResponse resp = Operations.LdapModifyDNRequest(
+            ModifyDNResponse resp = Operations.LdapModifyDNRequestAsync(
                 session.Connection,
                 entry,
                 originalRDN.ToString(),
@@ -70,7 +70,7 @@ public class MoveOpenADObject : OpenADSessionCmdletBase
                 TargetPath,
                 null,
                 CancelToken,
-                Logger);
+                Logger).GetAwaiter().GetResult();
             if (resp.Result.ResultCode != LDAPResultCode.Success)
             {
                 return;
@@ -79,7 +79,7 @@ public class MoveOpenADObject : OpenADSessionCmdletBase
             if (PassThru)
             {
                 WriteVerbose($"Getting PassThru result for '{newDN}'");
-                searchResult = Operations.LdapSearchRequest(
+                searchResult = Operations.LdapSearchRequestAsync(
                     session.Connection,
                     newDN.ToString(),
                     SearchScope.Base,
@@ -91,7 +91,7 @@ public class MoveOpenADObject : OpenADSessionCmdletBase
                     CancelToken,
                     Logger,
                     false
-                ).FirstOrDefault()!;
+                ).FirstOrDefaultAsync().GetAwaiter().GetResult();
             }
         }
         else if (PassThru)

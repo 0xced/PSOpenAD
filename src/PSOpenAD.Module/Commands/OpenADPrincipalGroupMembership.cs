@@ -33,9 +33,9 @@ public class GetOpenADPrincipalGroupMembership : GetOpenADOperation<ADPrincipalI
         IList<LDAPControl>? serverControls
     )
     {
-        foreach (SearchResultEntry principal in Operations.LdapSearchRequest(session.Connection, searchBase,
+        foreach (SearchResultEntry principal in Operations.LdapSearchRequestAsync(session.Connection, searchBase,
             SearchScope, 1, session.OperationTimeout, filter, new[] { "memberOf", "objectSid", "primaryGroupID" },
-            serverControls, CancelToken, Logger, false))
+            serverControls, CancelToken, Logger, false).ToListAsync().GetAwaiter().GetResult())
         {
             FilterEquality? primaryGroupFilter = null;
             LDAPFilter groupMembershipFilter;
@@ -80,9 +80,9 @@ public class GetOpenADPrincipalGroupMembership : GetOpenADOperation<ADPrincipalI
 
             try
             {
-                foreach (SearchResultEntry result in Operations.LdapSearchRequest(session.Connection, searchBase,
+                foreach (SearchResultEntry result in Operations.LdapSearchRequestAsync(session.Connection, searchBase,
                     SearchScope, 0, session.OperationTimeout, groupMembershipFilter, attributes, serverControls,
-                    CancelToken, Logger, false))
+                    CancelToken, Logger, false).ToListAsync().GetAwaiter().GetResult())
                 {
                     yield return result;
                 }

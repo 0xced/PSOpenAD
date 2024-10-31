@@ -2,10 +2,11 @@ using PSOpenAD.LDAP;
 using System;
 using System.Net.Security;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace PSOpenAD;
 
-internal interface IADConnection : IDisposable
+internal interface IADConnection : IAsyncDisposable
 {
     /// <summary>Gets the LDAP session associated with this connection.</summary>
     public LDAPSession Session { get; }
@@ -39,7 +40,7 @@ internal interface IADConnection : IDisposable
     /// </remarks>
     /// <param name="authOptions">The TLS client authentication details used during the handshake.</param>
     /// <param name="cancelToken">Token to cancel the TLS handshake connection.</param>
-    public SslStream SetTlsStream(
+    public Task<SslStream> SetTlsStreamAsync(
         SslClientAuthenticationOptions authOptions,
         CancellationToken cancelToken = default
     );

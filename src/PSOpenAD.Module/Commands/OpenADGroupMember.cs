@@ -33,9 +33,9 @@ public class GetOpenADGroupMember : GetOpenADOperation<ADPrincipalIdentity>
         IList<LDAPControl>? serverControls
     )
     {
-        foreach (SearchResultEntry group in Operations.LdapSearchRequest(session.Connection, searchBase,
+        foreach (SearchResultEntry group in Operations.LdapSearchRequestAsync(session.Connection, searchBase,
             SearchScope, 1, session.OperationTimeout, filter, new[] { "primaryGroupToken" }, serverControls,
-            CancelToken, Logger, false))
+            CancelToken, Logger, false).ToListAsync().GetAwaiter().GetResult())
         {
             // use memberOf rather than member to make recursive search easier & avoid paging
             LDAPFilter memberOfFilter;
@@ -77,9 +77,9 @@ public class GetOpenADGroupMember : GetOpenADOperation<ADPrincipalIdentity>
             _currentGroupDN = group.ObjectName;
             try
             {
-                foreach (SearchResultEntry result in Operations.LdapSearchRequest(session.Connection, searchBase,
+                foreach (SearchResultEntry result in Operations.LdapSearchRequestAsync(session.Connection, searchBase,
                     SearchScope, 0, session.OperationTimeout, memberOfFilter, attributes, serverControls, CancelToken,
-                    Logger, false))
+                    Logger, false).ToListAsync().GetAwaiter().GetResult())
                 {
                     yield return result;
                 }

@@ -1,6 +1,7 @@
 using PSOpenAD.LDAP;
 using System;
 using System.Formats.Asn1;
+using System.Threading.Tasks;
 using Xunit;
 
 namespace PSOpenADTests;
@@ -11,8 +12,7 @@ internal class CustomLDAPSession : LDAPSession
     {}
 
     // The test doesn't need to write anything
-    public override void WriteData(AsnWriter writer)
-    {}
+    public override Task WriteDataAsync(AsnWriter writer) => Task.CompletedTask;
 }
 
 public static class LDAPSessionTests

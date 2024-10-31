@@ -2,6 +2,7 @@ using PSOpenAD.LDAP;
 using System;
 using System.Collections.Generic;
 using System.Security.Cryptography.X509Certificates;
+using System.Threading.Tasks;
 
 namespace PSOpenAD;
 
@@ -101,9 +102,9 @@ public sealed class OpenADSession
         connection.Session.StateChanged += OnStateChanged;
     }
 
-    internal void Close()
+    internal async Task CloseAsync()
     {
-        Connection.Dispose();
+        await Connection.DisposeAsync();
         Connection.Session.StateChanged -= OnStateChanged;
     }
 

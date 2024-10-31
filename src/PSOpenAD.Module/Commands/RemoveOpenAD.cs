@@ -32,7 +32,7 @@ public class RemoveOpenADObject : OpenADSessionCmdletBase
         if (string.IsNullOrWhiteSpace(Identity.DistinguishedName))
         {
             WriteVerbose($"Looking up distinguished name for Identity object with filter '{Identity.LDAPFilter}'");
-            SearchResultEntry? searchRes = Operations.LdapSearchRequest(
+            SearchResultEntry? searchRes = Operations.LdapSearchRequestAsync(
                 session.Connection,
                 session.DefaultNamingContext,
                 SearchScope.Subtree,
@@ -44,7 +44,7 @@ public class RemoveOpenADObject : OpenADSessionCmdletBase
                 cancelToken: CancelToken,
                 logger: Logger,
                 ignoreErrors: false
-            ).FirstOrDefault();
+            ).FirstOrDefaultAsync().GetAwaiter().GetResult();
 
             if (searchRes != null)
             {
@@ -72,13 +72,13 @@ public class RemoveOpenADObject : OpenADSessionCmdletBase
         if (ShouldProcess(entryDN, "Delete"))
         {
             WriteVerbose($"Removing LDAP object '{entryDN}'");
-            Operations.LdapDeleteRequest(
+            Operations.LdapDeleteRequestAsync(
                 session.Connection,
                 entryDN,
                 controls: null,
                 cancelToken: CancelToken,
                 logger: Logger
-            );
+            ).GetAwaiter().GetResult();
         }
     }
 }

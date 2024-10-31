@@ -75,15 +75,35 @@ public abstract class OpenADSessionCmdletBase : OpenADCancellableCmdlet
 
     protected override void ProcessRecord()
     {
-        OpenADSession? session = Session ?? OpenADSessionFactory.CreateOrUseDefault(
+        if (string.IsNullOrEmpty(Server))
+        {
+            if (GlobalState.DefaultDC == null)
+            {
+                string msg = "Cannot determine default realm for implicit domain controller.";
+                if (!string.IsNullOrEmpty(GlobalState.DefaultDCError))
+                {
+                    msg += $" {GlobalState.DefaultDCError}";
+                }
+                WriteError(new ErrorRecord(
+                    new ArgumentException(msg),
+                    "NoImplicitDomainController",
+                    ErrorCategory.InvalidArgument,
+                    null));
+                return;
+            }
+
+            Server = GlobalState.DefaultDC.ToString();
+        }
+
+        OpenADSession? session = Session ?? OpenADSessionFactory.CreateOrUseDefaultAsync(
             Server,
-            Credential,
+            Credential?.GetNetworkCredential(),
             AuthType,
             StartTLS,
             SessionOption,
             CancelToken,
-            this
-        );
+            Logger
+        ).GetAwaiter().GetResult();
 
         // If null, it failed to create session - error records have already been written.
         if (session != null)
@@ -101,7 +121,7 @@ public abstract class OpenADSessionCmdletBase : OpenADCancellableCmdlet
     {
         WriteVerbose($"Attempting to get distinguishedName for object with filter '{identity.LDAPFilter}'");
 
-        SearchResultEntry? entryResult = Operations.LdapSearchRequest(
+        SearchResultEntry? entryResult = Operations.LdapSearchRequestAsync(
             session.Connection,
             session.DefaultNamingContext,
             SearchScope.Subtree,
@@ -113,7 +133,7 @@ public abstract class OpenADSessionCmdletBase : OpenADCancellableCmdlet
             CancelToken,
             Logger,
             false
-        ).FirstOrDefault();
+        ).FirstOrDefaultAsync().GetAwaiter().GetResult();
 
         PartialAttribute? dnResult = entryResult?.Attributes
             .Where(a => string.Equals(a.Name, "distinguishedName", StringComparison.InvariantCultureIgnoreCase))

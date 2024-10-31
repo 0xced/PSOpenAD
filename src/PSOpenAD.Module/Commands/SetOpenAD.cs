@@ -107,14 +107,14 @@ public class SetOpenADObject : OpenADSessionCmdletBase
         if (ShouldProcess(entry, "Set"))
         {
             WriteVerbose($"Setting LDAP object '{entry}'");
-            ModifyResponse resp = Operations.LdapModifyRequest(
+            ModifyResponse resp = Operations.LdapModifyRequestAsync(
                 session.Connection,
                 entry,
                 changes.ToArray(),
                 null,
                 CancelToken,
                 Logger
-            );
+            ).GetAwaiter().GetResult();
             if (resp.Result.ResultCode != LDAPResultCode.Success)
             {
                 return;
@@ -123,7 +123,7 @@ public class SetOpenADObject : OpenADSessionCmdletBase
             if (PassThru)
             {
                 WriteVerbose($"Getting PassThru result for '{entry}'");
-                searchResult = Operations.LdapSearchRequest(
+                searchResult = Operations.LdapSearchRequestAsync(
                     session.Connection,
                     entry,
                     SearchScope.Base,
@@ -135,7 +135,7 @@ public class SetOpenADObject : OpenADSessionCmdletBase
                     CancelToken,
                     Logger,
                     false
-                ).FirstOrDefault()!;
+                ).FirstOrDefaultAsync().GetAwaiter().GetResult();
             }
         }
         else if (PassThru)

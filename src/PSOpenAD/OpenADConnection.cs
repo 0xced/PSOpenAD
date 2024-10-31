@@ -4,16 +4,15 @@ using System.Buffers;
 using System.Collections.Concurrent;
 using System.IO;
 using System.IO.Pipelines;
-using System.Linq;
 using System.Net.Security;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace PSOpenAD.Module;
+namespace PSOpenAD;
 
-internal class OpenADConnection : IADConnection
+internal sealed class OpenADConnection : IADConnection
 {
     private readonly object _closeLock = new();
     private readonly Task _recvTask;
@@ -88,7 +87,7 @@ internal class OpenADConnection : IADConnection
         _messages.TryRemove(messageId, out var _);
     }
 
-    public SslStream SetTlsStream(SslClientAuthenticationOptions authOptions,
+    public async Task<SslStream> SetTlsStreamAsync(SslClientAuthenticationOptions authOptions,
         CancellationToken cancelToken = default)
     {
         // Mark this event as unset and cancel the Recv task. This task will wait until the event is set again
@@ -98,7 +97,7 @@ internal class OpenADConnection : IADConnection
         try
         {
             SslStream tls = new(_ioStream, false);
-            tls.AuthenticateAsClientAsync(authOptions, cancelToken).GetAwaiter().GetResult();
+            await tls.AuthenticateAsClientAsync(authOptions, cancelToken);
             _ioStream = tls;
 
             return tls;
@@ -231,7 +230,7 @@ internal class OpenADConnection : IADConnection
                 break;
         }
 
-        Session.Close();
+        await Session.CloseAsync();
         _closed = true;
         await writer.CompleteAsync();
     }
@@ -411,31 +410,28 @@ internal class OpenADConnection : IADConnection
         }
     }
 
-    public void Dispose()
+    public async ValueTask DisposeAsync()
     {
         // Cancel the recv so it doesn't fail with connection reset by peer
         if (!_recvCancel.IsCancellationRequested)
             _recvCancel.Cancel();
-        _recvTask.GetAwaiter().GetResult();
+        await _recvTask;
 
         // The unbind response also marks the LDAP outgoing reader as done
         if (Session.State == SessionState.Opened)
-            Session.Unbind();
+            await Session.UnbindAsync();
         else
-            Session.Close();
-        _sendTask.GetAwaiter().GetResult();
-        _pipeReader.Complete();
+            await Session.CloseAsync();
+        await _sendTask;
+        await _pipeReader.CompleteAsync();
 
         // Once both tasks are complete dispose of the stream and connection.
-        _ioStream.Dispose();
+        await _ioStream.DisposeAsync();
         _connection.Dispose();
         _securityContext?.Dispose();
-        _traceWriter?.Dispose();
+        if (_traceWriter != null)
+            await _traceWriter.DisposeAsync();
 
         _closed = true;
-
-        GC.SuppressFinalize(this);
     }
-
-    ~OpenADConnection() { Dispose(); }
 }
