@@ -13,7 +13,7 @@ internal partial class Kerberos
         SafeKrb5Context context,
         nint name)
     {
-        if (GlobalState.GetFromTLS().GssapiProvider == GssapiProvider.MIT)
+        if (GSSAPI.Provider == GssapiProvider.MIT)
         {
             krb5_free_unparsed_name(context, name);
         }

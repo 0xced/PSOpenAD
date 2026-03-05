@@ -144,6 +144,61 @@ internal class GssapiSecContext
 
 internal static class GSSAPI
 {
+    public static readonly Dictionary<AuthenticationMethod, AuthenticationProvider> Providers = [];
+
+    public static readonly GssapiProvider Provider = GssapiProvider.None;
+
+    static GSSAPI()
+    {
+        // While channel binding isn't technically done by both these methods, an Active Directory implementation
+        // doesn't validate its presence, so from the purpose of a client it does work even if it's enforced on the
+        // server end.
+        Providers[AuthenticationMethod.Anonymous] = new(AuthenticationMethod.Anonymous, "ANONYMOUS", true, false, "");
+        Providers[AuthenticationMethod.Simple] = new(AuthenticationMethod.Simple, "PLAIN", true, false, "");
+        Providers[AuthenticationMethod.Certificate] = new(AuthenticationMethod.Certificate, "EXTERNAL", true, true, "");
+
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            // Windows always has SSPI available.
+            Provider = GssapiProvider.SSPI;
+            Providers[AuthenticationMethod.Kerberos] = new(AuthenticationMethod.Kerberos, "GSSAPI", true, true, "");
+            Providers[AuthenticationMethod.Negotiate] = new(AuthenticationMethod.Negotiate, "GSS-SPNEGO", true, true, "");
+        }
+        else
+        {
+            const string MACOS_GSS_FRAMEWORK = "/System/Library/Frameworks/GSS.framework/GSS";
+
+            LibraryInfo? gssapiLib = NativeResolver.CacheLibrary(LIB_GSSAPI, [
+                MACOS_GSS_FRAMEWORK, // macOS GSS Framework (technically Heimdal)
+                "libgssapi_krb5.so.2", // MIT krb5
+                "libgssapi.so.3", "libgssapi.so", // Heimdal
+            ]);
+
+            var isAvailable = gssapiLib != null;
+            var details = isAvailable ? "" : "GSSAPI library not found";
+            Providers[AuthenticationMethod.Kerberos] = new(AuthenticationMethod.Kerberos, "GSSAPI", isAvailable, isAvailable, details);
+            Providers[AuthenticationMethod.Negotiate] = new(AuthenticationMethod.Negotiate, "GSS-SPNEGO", isAvailable, isAvailable, details);
+
+            if (gssapiLib != null)
+            {
+                if (gssapiLib.Path == MACOS_GSS_FRAMEWORK)
+                {
+                    Provider = GssapiProvider.GSSFramework;
+                }
+                else if (NativeLibrary.TryGetExport(gssapiLib.Handle, "krb5_xfree", out _))
+                {
+                    // While technically exported by the krb5 lib the Heimdal GSSAPI lib depends on it, so the same
+                    // symbol will be exported there, and we can use that to detect if Heimdal is in use.
+                    Provider = GssapiProvider.Heimdal;
+                }
+                else
+                {
+                    Provider = GssapiProvider.MIT;
+                }
+            }
+        }
+    }
+
     public const string LIB_GSSAPI = "PSOpenAD.libgssapi";
 
     // Name Types
@@ -782,7 +837,7 @@ internal static class GSSAPI
     internal static bool IsIntelMacOS()
     {
         // macOS on x86_64 need to use a specially packed structure when using GSS.Framework.
-        return GlobalState.GetFromTLS().GssapiProvider == GssapiProvider.GSSFramework && (
+        return Provider == GssapiProvider.GSSFramework && (
             RuntimeInformation.ProcessArchitecture == Architecture.X86 ||
             RuntimeInformation.ProcessArchitecture == Architecture.X64
         );

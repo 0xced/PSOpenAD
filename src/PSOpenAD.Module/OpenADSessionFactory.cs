@@ -13,6 +13,7 @@ using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using PSOpenAD.Native;
 
 namespace PSOpenAD.Module;
 
@@ -153,7 +154,6 @@ internal sealed class OpenADSessionFactory
             }
 
             auth = Authenticate(
-                state,
                 connection,
                 uri,
                 auth,
@@ -332,7 +332,6 @@ internal sealed class OpenADSessionFactory
     /// <param name="encrypted">Whether the auth context will encrypt the messages.</param>
     /// <returns>The authentication method used</returns>
     private static AuthenticationMethod Authenticate(
-        GlobalState state,
         IADConnection connection,
         Uri uri,
         AuthenticationMethod auth,
@@ -356,7 +355,7 @@ internal sealed class OpenADSessionFactory
             // Use Certificate if a client certificate is specified, otherwise favour Negotiate auth if it is
             // available. Otherwise use Simple if both a credential and the exchange would be encrypted. If all else
             // fails use an anonymous bind.
-            AuthenticationProvider nego = state.Providers[AuthenticationMethod.Negotiate];
+            AuthenticationProvider nego = GSSAPI.Providers[AuthenticationMethod.Negotiate];
             if (sessionOptions.ClientCertificate is not null && transportIsTls)
             {
                 auth = AuthenticationMethod.Certificate;
@@ -377,7 +376,7 @@ internal sealed class OpenADSessionFactory
             cmdlet.WriteVerbose($"Default authentication mechanism has been set to {auth}");
         }
 
-        AuthenticationProvider selectedAuth = state.Providers[auth];
+        AuthenticationProvider selectedAuth = GSSAPI.Providers[auth];
         if (!selectedAuth.Available)
         {
             string msg = $"Authentication {selectedAuth.Method} is not available";

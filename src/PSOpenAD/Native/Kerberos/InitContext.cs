@@ -4,8 +4,6 @@ namespace PSOpenAD.Native;
 
 internal partial class Kerberos
 {
-    public const string LIB_KRB5 = "PSOpenAD.libkrb5";
-
     [LibraryImport(LIB_KRB5)]
     private static partial int krb5_init_context(
         out nint context);

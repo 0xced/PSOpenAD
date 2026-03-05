@@ -13,7 +13,7 @@ internal partial class Kerberos
         SafeKrb5Context context,
         nint realm)
     {
-        if (GlobalState.GetFromTLS().GssapiProvider == GssapiProvider.MIT)
+        if (GSSAPI.Provider == GssapiProvider.MIT)
         {
             krb5_free_default_realm(context, realm);
         }

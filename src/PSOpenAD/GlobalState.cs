@@ -37,9 +37,6 @@ internal class GlobalState
 
     private GlobalState() { }
 
-    /// <summary>Client authentication provider details.</summary>
-    public Dictionary<AuthenticationMethod, AuthenticationProvider> Providers = [];
-
     /// <summary>List of sessions that have been opened by the client.</summary>
     public List<OpenADSession> Sessions = [];
 
@@ -48,9 +45,6 @@ internal class GlobalState
 
     /// <summary>Information about LDAP classes and their attributes.</summary>
     public SchemaMetadata? SchemaMetadata;
-
-    /// <summary>The GSSAPI/SSPI provider that is used.</summary>
-    public GssapiProvider GssapiProvider;
 
     /// <summary>The default domain controller hostname to use when none was provided.</summary>
     public Uri? DefaultDC;
