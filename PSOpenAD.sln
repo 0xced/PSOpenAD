@@ -13,6 +13,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{60862846
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "PSOpenADTests", "tests\units\PSOpenADTests.csproj", "{D399695A-9EC1-4B05-AA50-91022D80A142}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "openad", "tests\cli\openad.csproj", "{472594D8-75B2-4F7D-936F-9605E222815A}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -31,6 +33,10 @@ Global
 		{D399695A-9EC1-4B05-AA50-91022D80A142}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{D399695A-9EC1-4B05-AA50-91022D80A142}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{D399695A-9EC1-4B05-AA50-91022D80A142}.Release|Any CPU.Build.0 = Release|Any CPU
+		{472594D8-75B2-4F7D-936F-9605E222815A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{472594D8-75B2-4F7D-936F-9605E222815A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{472594D8-75B2-4F7D-936F-9605E222815A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{472594D8-75B2-4F7D-936F-9605E222815A}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -39,6 +45,7 @@ Global
 		{466E3037-C097-46BB-AED5-4DE7562A99CB} = {DA248C8F-EB56-4730-9ED5-EF270777EE71}
 		{1AE6097B-61AC-4909-993A-98430812B157} = {DA248C8F-EB56-4730-9ED5-EF270777EE71}
 		{D399695A-9EC1-4B05-AA50-91022D80A142} = {60862846-2A97-4D62-833F-D312EF5FBA2C}
+		{472594D8-75B2-4F7D-936F-9605E222815A} = {60862846-2A97-4D62-833F-D312EF5FBA2C}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {9BEC0D10-B88E-468A-A088-CC97FAEF1365}

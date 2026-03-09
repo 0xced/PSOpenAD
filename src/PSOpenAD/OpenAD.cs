@@ -1,17 +1,22 @@
 using PSOpenAD.Security;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Management.Automation;
 
 namespace PSOpenAD;
 
-public class OpenADEntity
+public class OpenADEntity : IEnumerable<KeyValuePair<string, (PSObject[], bool)>>
 {
+    private readonly IEnumerable<KeyValuePair<string, (PSObject[], bool)>> _attributes;
+
     internal static (string, bool)[] DEFAULT_PROPERTIES = Array.Empty<(string, bool)>();
 
     public OpenADEntity(IDictionary<string, (PSObject[], bool)> attributes)
-    {}
+    {
+        _attributes = attributes;
+    }
 
     internal static (string, bool)[] ExtendPropertyList((string, bool)[] existing, (string, bool)[] toAdd)
     {
@@ -19,6 +24,9 @@ public class OpenADEntity
         properties.AddRange(toAdd);
         return properties.ToArray();
     }
+
+    public IEnumerator<KeyValuePair<string, (PSObject[], bool)>> GetEnumerator() => _attributes.GetEnumerator();
+    IEnumerator IEnumerable.GetEnumerator() => ((IEnumerable)_attributes).GetEnumerator();
 }
 
 public class OpenADObject : OpenADEntity
